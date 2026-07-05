@@ -2,9 +2,12 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { useSession, signOut } from "next-auth/react";
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const { data: session, status } = useSession();
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-midnight-950/70 backdrop-blur-xl border-b border-amethyst-500/10">
@@ -38,12 +41,50 @@ export default function Navbar() {
         </div>
 
         <div className="hidden md:flex items-center gap-3">
-          <Link href="/memorials" className="text-mist-300 hover:text-white transition-colors text-sm">
-            登录
-          </Link>
-          <Link href="/create" className="btn-primary text-sm py-2 px-4">
-            开始创建
-          </Link>
+          {status === "loading" ? (
+            <div className="w-20 h-8 bg-midnight-700/50 rounded-lg animate-pulse" />
+          ) : session?.user ? (
+            <div className="relative">
+              <button
+                onClick={() => setUserMenuOpen(!userMenuOpen)}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-midnight-700/50 transition-colors"
+              >
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amethyst-500 to-amethyst-700 flex items-center justify-center text-sm text-white">
+                  {session.user.name?.[0] || "U"}
+                </div>
+                <span className="text-sm text-mist-200">{session.user.name}</span>
+                <svg className="w-4 h-4 text-mist-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {userMenuOpen && (
+                <div className="absolute right-0 mt-2 w-48 bg-midnight-800 border border-amethyst-700/30 rounded-xl shadow-xl overflow-hidden">
+                  <Link
+                    href="/dashboard"
+                    className="block px-4 py-3 text-sm text-mist-200 hover:bg-midnight-700/50 transition-colors"
+                    onClick={() => setUserMenuOpen(false)}
+                  >
+                    我的纪念馆
+                  </Link>
+                  <button
+                    onClick={() => signOut({ callbackUrl: "/" })}
+                    className="w-full text-left px-4 py-3 text-sm text-rose-300 hover:bg-midnight-700/50 transition-colors"
+                  >
+                    退出登录
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <>
+              <Link href="/login" className="text-mist-300 hover:text-white transition-colors text-sm">
+                登录
+              </Link>
+              <Link href="/register" className="btn-primary text-sm py-2 px-4">
+                注册
+              </Link>
+            </>
+          )}
         </div>
 
         <button
@@ -71,9 +112,28 @@ export default function Navbar() {
           <Link href="/create" className="block text-mist-300 hover:text-white py-2" onClick={() => setIsOpen(false)}>
             创建纪念馆
           </Link>
-          <Link href="/create" className="btn-primary text-sm w-full text-center block" onClick={() => setIsOpen(false)}>
-            开始创建
-          </Link>
+          {session?.user ? (
+            <>
+              <Link href="/dashboard" className="block text-mist-300 hover:text-white py-2" onClick={() => setIsOpen(false)}>
+                我的纪念馆
+              </Link>
+              <button
+                onClick={() => { signOut({ callbackUrl: "/" }); setIsOpen(false); }}
+                className="block text-rose-300 py-2 w-full text-left"
+              >
+                退出登录
+              </button>
+            </>
+          ) : (
+            <div className="flex gap-3 pt-2">
+              <Link href="/login" className="flex-1 text-center text-mist-300 border border-amethyst-700/30 rounded-lg py-2" onClick={() => setIsOpen(false)}>
+                登录
+              </Link>
+              <Link href="/register" className="flex-1 text-center btn-primary text-sm py-2" onClick={() => setIsOpen(false)}>
+                注册
+              </Link>
+            </div>
+          )}
         </div>
       )}
     </nav>

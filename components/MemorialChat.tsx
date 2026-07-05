@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { generateAIReply, type Memorial } from "@/lib/mockData";
+import type { Memorial } from "@/lib/types";
 
 interface MemorialChatProps {
   memorial: Memorial;
@@ -11,7 +11,7 @@ export default function MemorialChat({ memorial }: MemorialChatProps) {
   const [messages, setMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([
     {
       role: "assistant",
-      content: `你好，我是${memorial.name}的AI数字形象。你可以叫我${memorial.name.split("")[0]}老师/长辈。有什么想和我说的吗？`,
+      content: `你好，我是${memorial.name}的AI数字形象。有什么想和我说的吗？`,
     },
   ]);
   const [input, setInput] = useState("");
@@ -22,21 +22,35 @@ export default function MemorialChat({ memorial }: MemorialChatProps) {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
 
-  const handleSend = () => {
-    if (!input.trim()) return;
-
-    const userMessage = input.trim();
-    setMessages((prev) => [...prev, { role: "user", content: userMessage }]);
+  const sendMessage = async (text: string) => {
+    setMessages((prev) => [...prev, { role: "user", content: text }]);
     setInput("");
     setIsTyping(true);
 
-    // Simulate AI thinking + typing
-    const delay = 1200 + Math.random() * 800;
-    setTimeout(() => {
-      const reply = generateAIReply(userMessage);
-      setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memorialSlug: memorial.id, message: text }),
+      });
+
+      if (!res.ok) throw new Error("请求失败");
+
+      const data = await res.json();
+      setMessages((prev) => [...prev, { role: "assistant", content: data.content }]);
+    } catch {
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: "抱歉，我暂时无法回复。请稍后再试。" },
+      ]);
+    } finally {
       setIsTyping(false);
-    }, delay);
+    }
+  };
+
+  const handleSend = () => {
+    if (!input.trim() || isTyping) return;
+    sendMessage(input.trim());
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -117,20 +131,9 @@ export default function MemorialChat({ memorial }: MemorialChatProps) {
           {quickPrompts.map((prompt) => (
             <button
               key={prompt}
-              onClick={() => {
-                setInput(prompt);
-                setTimeout(() => {
-                  setMessages((prev) => [...prev, { role: "user", content: prompt }]);
-                  setInput("");
-                  setIsTyping(true);
-                  setTimeout(() => {
-                    const reply = generateAIReply(prompt);
-                    setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
-                    setIsTyping(false);
-                  }, 1500);
-                }, 100);
-              }}
-              className="px-3 py-1.5 rounded-full bg-amethyst-500/10 text-xs text-mist-300 border border-amethyst-500/20 hover:bg-amethyst-500/20 transition-colors"
+              onClick={() => sendMessage(prompt)}
+              disabled={isTyping}
+              className="px-3 py-1.5 rounded-full bg-amethyst-500/10 text-xs text-mist-300 border border-amethyst-500/20 hover:bg-amethyst-500/20 transition-colors disabled:opacity-40"
             >
               {prompt}
             </button>

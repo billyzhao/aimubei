@@ -2,11 +2,15 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 
 export default function CreatePage() {
+  const router = useRouter();
   const [step, setStep] = useState(1);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
   const [formData, setFormData] = useState({
     name: "",
     title: "",
@@ -16,6 +20,8 @@ export default function CreatePage() {
     bio: "",
     personality: "",
     traits: [] as string[],
+    quotes: [] as string[],
+    quoteInput: "",
     photos: [] as string[],
     voiceSample: false,
     plan: "pro",
@@ -41,12 +47,57 @@ export default function CreatePage() {
     }));
   };
 
+  const addQuote = () => {
+    if (!formData.quoteInput.trim()) return;
+    setFormData((prev) => ({
+      ...prev,
+      quotes: [...prev.quotes, prev.quoteInput.trim()],
+      quoteInput: "",
+    }));
+  };
+
   const canProceed = () => {
     switch (step) {
       case 1: return formData.name && formData.birthYear && formData.deathYear;
       case 2: return formData.bio.length > 10;
       case 3: return formData.traits.length > 0;
       default: return true;
+    }
+  };
+
+  const handleSubmit = async () => {
+    setSubmitting(true);
+    setError("");
+
+    try {
+      const res = await fetch("/api/memorials/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: formData.name,
+          title: formData.title || `${formData.name} · ${formData.birthYear}-${formData.deathYear}`,
+          bio: formData.bio,
+          personality: formData.personality || undefined,
+          traits: formData.traits,
+          quotes: formData.quotes,
+          birthYear: parseInt(formData.birthYear),
+          deathYear: parseInt(formData.deathYear),
+          timeline: [],
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || "创建失败");
+        setSubmitting(false);
+        return;
+      }
+
+      router.push(`/memorial/${data.slug}`);
+    } catch {
+      setError("网络错误，请稍后重试");
+      setSubmitting(false);
     }
   };
 
@@ -191,11 +242,37 @@ export default function CreatePage() {
 
                 <div>
                   <label className="text-sm text-mist-300 mb-2 block">经典语录（可选）</label>
-                  <input
-                    type="text"
-                    placeholder="TA常说的一句话..."
-                    className="w-full bg-midnight-700/60 text-mist-200 placeholder-mist-400/50 rounded-xl px-4 py-3 text-sm border border-amethyst-500/15 focus:outline-none focus:border-amethyst-500/40 transition-colors"
-                  />
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={formData.quoteInput}
+                      onChange={(e) => setFormData({ ...formData, quoteInput: e.target.value })}
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addQuote(); } }}
+                      placeholder="TA常说的一句话..."
+                      className="flex-1 bg-midnight-700/60 text-mist-200 placeholder-mist-400/50 rounded-xl px-4 py-3 text-sm border border-amethyst-500/15 focus:outline-none focus:border-amethyst-500/40 transition-colors"
+                    />
+                    <button
+                      onClick={addQuote}
+                      className="btn-secondary text-sm px-4"
+                    >
+                      添加
+                    </button>
+                  </div>
+                  {formData.quotes.length > 0 && (
+                    <div className="mt-3 space-y-2">
+                      {formData.quotes.map((q, i) => (
+                        <div key={i} className="flex items-center gap-2 text-sm text-mist-300 border-l-2 border-amethyst-500/30 pl-3">
+                          <span className="flex-1 italic">"{q}"</span>
+                          <button
+                            onClick={() => setFormData({ ...formData, quotes: formData.quotes.filter((_, idx) => idx !== i) })}
+                            className="text-rose-400 hover:text-rose-300 text-xs"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="glass-card p-4 bg-amethyst-500/5">
@@ -272,22 +349,11 @@ export default function CreatePage() {
                   <p className="text-xs text-mist-400">支持 JPG、PNG 格式，单张不超过 10MB</p>
                 </div>
 
-                <div className="grid grid-cols-3 gap-3">
-                  {["🌅", "👨‍🏫", "🎓", "🏆", "🎂", "✈️"].map((emoji, i) => (
-                    <div key={i} className="aspect-square glass-card flex items-center justify-center text-4xl relative group cursor-pointer">
-                      {emoji}
-                      <div className="absolute inset-0 bg-midnight-950/80 rounded-2xl opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                        <span className="text-xs text-rose-400">🗑️ 删除</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
                 <div className="glass-card p-4 bg-amethyst-500/5">
                   <div className="flex gap-3">
                     <span className="text-xl">💡</span>
                     <p className="text-xs text-mist-400 leading-relaxed">
-                      建议上传不同时期的照片：年轻时的、中年时的、与家人的合影等。照片越丰富，纪念馆越生动。
+                      照片上传功能将在下一迭代开放。当前可先跳过此步骤。
                     </p>
                   </div>
                 </div>
@@ -376,6 +442,12 @@ export default function CreatePage() {
                     </button>
                   ))}
                 </div>
+
+                {error && (
+                  <div className="px-4 py-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-300 text-sm">
+                    {error}
+                  </div>
+                )}
               </div>
             )}
 
@@ -383,7 +455,7 @@ export default function CreatePage() {
             <div className="flex justify-between mt-8 pt-6 border-t border-amethyst-500/10">
               <button
                 onClick={() => setStep(Math.max(1, step - 1))}
-                disabled={step === 1}
+                disabled={step === 1 || submitting}
                 className="btn-secondary text-sm disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 ← 上一步
@@ -398,9 +470,13 @@ export default function CreatePage() {
                   下一步 →
                 </button>
               ) : (
-                <Link href="/memorial/zhanglaoshi" className="btn-gold text-sm">
-                  ✨ 创建纪念馆
-                </Link>
+                <button
+                  onClick={handleSubmit}
+                  disabled={submitting}
+                  className="btn-gold text-sm disabled:opacity-50"
+                >
+                  {submitting ? "创建中..." : "✨ 创建纪念馆"}
+                </button>
               )}
             </div>
           </div>

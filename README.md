@@ -1,86 +1,93 @@
 # 永念 EverMind — AI数字纪念空间
 
-> 用AI技术让逝者的记忆活下去，把冰冷的石碑变成可交互的数字纪念空间，让思念可以对话。
+用AI技术让逝者的记忆活下去，把冰冷的石碑变成可交互的数字纪念空间，让思念可以对话。
 
-## 📋 项目简介
+## 技术栈
 
-永念（EverMind）是一个AI驱动的数字纪念平台，通过AI人格复刻、语音克隆、时光信箱等核心技术，让用户能够以对话的方式缅怀逝去的亲人。
+- **前端**：Next.js 14 + TypeScript + Tailwind CSS
+- **数据库**：Prisma ORM + SQLite（开发）/ PostgreSQL（生产）
+- **认证**：NextAuth.js（邮箱密码登录）
+- **容器化**：Docker Compose（PostgreSQL + Redis + MinIO）
 
-**当前版本**：v0.1.0 — 原型演示版
-
-## ✨ 核心功能
-
-- **AI人格复刻** — 基于逝者文字资料训练专属LLM，还原说话风格和性格
-- **语音克隆** — 3分钟语音样本复刻逝者原声
-- **时光信箱** — 生前预录定时信件 + AI以逝者口吻回信
-- **家族传承** — 家族树 + 记忆胶囊，跨代际记忆传递
-- **数字祭奠** — 献花、点烛、留言，在线表达思念
-- **生平时间线** — 可视化展示逝者一生的重要时刻
-
-## 🛠 技术栈
-
-- **框架**: Next.js 14 (App Router)
-- **语言**: TypeScript
-- **样式**: Tailwind CSS
-- **部署**: 静态导出 / Docker
-
-## 🚀 本地运行
+## 快速开始
 
 ```bash
 # 安装依赖
 npm install
 
-# 开发模式
+# 初始化数据库 + 导入演示数据
+npm run db:push
+npm run db:seed
+
+# 启动开发服务器
 npm run dev
-
-# 生产构建
-npm run build
-
-# 启动生产服务
-npm start
 ```
 
 访问 http://localhost:3000
 
-## 📂 项目结构
+**演示账号**：demo@evermind.cn / demo123456
+
+## 数据库管理
+
+```bash
+# 查看数据库（可视化）
+npm run db:studio
+
+# 重置数据库
+npm run db:reset
+```
+
+## Docker 部署（可选）
+
+```bash
+# 启动 PostgreSQL + Redis + MinIO
+docker-compose up -d
+
+# 修改 .env 中的 DATABASE_URL 切换到 PostgreSQL
+# 然后重新推送 schema
+npx prisma db push
+```
+
+## 项目结构
 
 ```
 aimubei/
-├── app/
-│   ├── layout.tsx           # 根布局
-│   ├── page.tsx             # 首页
-│   ├── globals.css          # 全局样式
-│   ├── memorial/[id]/       # 纪念馆详情页
-│   ├── memorials/           # 纪念馆列表页
-│   └── create/              # 创建纪念馆向导
-├── components/
-│   ├── Navbar.tsx           # 导航栏
-│   ├── Footer.tsx           # 页脚
-│   ├── MemorialChat.tsx     # AI对话组件
-│   ├── Timeline.tsx         # 时间线组件
-│   └── TributePanel.tsx     # 祭奠面板组件
-├── lib/
-│   └── mockData.ts          # 模拟数据
-└── package.json
+├── app/                    # Next.js App Router
+│   ├── api/                # API 路由
+│   │   ├── auth/[...nextauth]/  # NextAuth 认证
+│   │   ├── chat/           # AI 对话 API
+│   │   ├── memorials/      # 纪念馆 CRUD
+│   │   ├── register/       # 用户注册
+│   │   └── tributes/       # 祭奠互动
+│   ├── create/             # 创建纪念馆向导
+│   ├── dashboard/          # 用户个人中心
+│   ├── login/              # 登录页
+│   ├── memorial/[id]/      # 纪念馆详情页
+│   ├── memorials/          # 纪念馆列表
+│   ├── register/           # 注册页
+│   ├── layout.tsx          # 根布局
+│   └── page.tsx            # 首页
+├── components/             # React 组件
+├── lib/                    # 工具库
+│   ├── auth.ts             # NextAuth 配置
+│   ├── data.ts             # 数据查询层
+│   ├── db.ts               # Prisma 客户端
+│   └── types.ts            # 共享类型
+├── prisma/                 # Prisma 配置
+│   ├── schema.prisma       # 数据库 Schema
+│   └── seed.ts             # 种子数据
+├── docker-compose.yml      # Docker 编排
+└── .env                    # 环境变量
 ```
 
-## 📄 页面说明
+## 迭代进度
 
-| 页面 | 路径 | 说明 |
-|------|------|------|
-| 首页 | `/` | 产品介绍、功能展示、价格方案 |
-| 纪念馆列表 | `/memorials` | 浏览所有纪念馆 |
-| 纪念馆详情 | `/memorial/[id]` | AI对话、时间线、祭奠互动 |
-| 创建纪念馆 | `/create` | 6步创建向导 |
+- [x] **Iteration 0** — 原型验证（v0.1.0）
+- [x] **Iteration 1** — 工程地基 + 用户系统（v0.2.0）
+- [ ] **Iteration 2** — 纪念馆核心功能
+- [ ] **Iteration 3** — AI 引擎集成
+- [ ] **Iteration 4** — 高级功能 + 正式上线
 
-## ⚠️ 原型说明
-
-当前为原型演示版本：
-- AI对话回复为模拟数据，非真实AI生成
-- 所有用户数据为预设的演示数据
-- 照片墙使用占位符
-- 创建向导为UI演示，不实际保存数据
-
-## 📜 License
+## License
 
 MIT

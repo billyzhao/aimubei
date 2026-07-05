@@ -5,18 +5,30 @@ import Footer from "@/components/Footer";
 import MemorialChat from "@/components/MemorialChat";
 import Timeline from "@/components/Timeline";
 import TributePanel from "@/components/TributePanel";
-import { getMemorialById, mockMemorials } from "@/lib/mockData";
+import { getMemorialBySlug, getAllMemorials } from "@/lib/data";
+import type { Memorial } from "@/lib/types";
 
-export function generateStaticParams() {
-  return mockMemorials.map((m) => ({ id: m.id }));
+function getAvatarEmoji(memorial: { name: string; title: string; traits: string[] }): string {
+  const title = memorial.title + memorial.traits.join("");
+  if (/教师|老师|教/.test(title)) return "📖";
+  if (/医|药|诊/.test(title)) return "⚕️";
+  if (/母|妈|奶奶|外婆/.test(title)) return "🥟";
+  if (/父|爸|爷爷|外公/.test(title)) return "🕯️";
+  if (/军|兵|战/.test(title)) return "🎖️";
+  if (/艺|画|音|琴/.test(title)) return "🎨";
+  return "🌿";
 }
 
-export default function MemorialPage({ params }: { params: { id: string } }) {
-  const memorial = getMemorialById(params.id);
+export default async function MemorialPage({ params }: { params: { id: string } }) {
+  const memorial: Memorial | null = await getMemorialBySlug(params.id);
 
   if (!memorial) {
     notFound();
   }
+
+  // 获取其他纪念馆
+  const allMemorials = await getAllMemorials();
+  const otherMemorials = allMemorials.filter((m) => m.id !== memorial.id).slice(0, 3);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -38,7 +50,7 @@ export default function MemorialPage({ params }: { params: { id: string } }) {
               {/* Avatar */}
               <div className="flex-shrink-0">
                 <div className="w-32 h-32 md:w-40 md:h-40 rounded-2xl bg-gradient-to-br from-midnight-700 to-midnight-800 border-2 border-amethyst-500/30 flex items-center justify-center text-6xl md:text-7xl shadow-lg shadow-amethyst-500/20">
-                  {memorial.id === "zhanglaoshi" ? "📖" : memorial.id === "linnainai" ? "🥟" : "⚕️"}
+                  {getAvatarEmoji(memorial)}
                 </div>
                 {memorial.isVerified && (
                   <div className="mt-3 flex items-center justify-center gap-1 text-xs text-amethyst-400">
@@ -56,7 +68,7 @@ export default function MemorialPage({ params }: { params: { id: string } }) {
 
                 {/* Traits */}
                 <div className="flex flex-wrap gap-2 justify-center md:justify-start mb-4">
-                  {memorial.traits.map((trait) => (
+                  {memorial.traits.map((trait: string) => (
                     <span
                       key={trait}
                       className="px-3 py-1 rounded-full bg-amethyst-500/10 text-xs text-amethyst-300 border border-amethyst-500/20"
@@ -89,15 +101,17 @@ export default function MemorialPage({ params }: { params: { id: string } }) {
             </div>
 
             {/* Quote */}
-            <div className="mt-8 pt-8 border-t border-amethyst-500/10">
-              <div className="text-center">
-                <div className="text-3xl text-amethyst-500/30 mb-2 font-serif">"</div>
-                <p className="text-lg md:text-xl font-serif text-mist-200 italic">
-                  {memorial.quotes[0]}
-                </p>
-                <p className="text-sm text-mist-400 mt-2">— {memorial.name}</p>
+            {memorial.quotes.length > 0 && (
+              <div className="mt-8 pt-8 border-t border-amethyst-500/10">
+                <div className="text-center">
+                  <div className="text-3xl text-amethyst-500/30 mb-2 font-serif">"</div>
+                  <p className="text-lg md:text-xl font-serif text-mist-200 italic">
+                    {memorial.quotes[0]}
+                  </p>
+                  <p className="text-sm text-mist-400 mt-2">— {memorial.name}</p>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       </section>
@@ -117,22 +131,26 @@ export default function MemorialPage({ params }: { params: { id: string } }) {
             <MemorialChat memorial={memorial} />
 
             {/* Personality Info */}
-            <div className="glass-card p-6 mt-6">
-              <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-                <span>🧠</span> AI人格特征
-              </h3>
-              <p className="text-sm text-mist-400 leading-relaxed mb-4">
-                {memorial.personality}
-              </p>
-              <div className="space-y-2">
-                <div className="text-xs text-mist-400 mb-2">经典语录：</div>
-                {memorial.quotes.map((quote, i) => (
-                  <div key={i} className="text-sm text-mist-300 italic border-l-2 border-amethyst-500/30 pl-3">
-                    "{quote}"
+            {memorial.personality && (
+              <div className="glass-card p-6 mt-6">
+                <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+                  <span>🧠</span> AI人格特征
+                </h3>
+                <p className="text-sm text-mist-400 leading-relaxed mb-4">
+                  {memorial.personality}
+                </p>
+                {memorial.quotes.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="text-xs text-mist-400 mb-2">经典语录：</div>
+                    {memorial.quotes.map((quote: string, i: number) => (
+                      <div key={i} className="text-sm text-mist-300 italic border-l-2 border-amethyst-500/30 pl-3">
+                        "{quote}"
+                      </div>
+                    ))}
                   </div>
-                ))}
+                )}
               </div>
-            </div>
+            )}
           </div>
 
           {/* Right: Tribute Panel */}
@@ -147,6 +165,7 @@ export default function MemorialPage({ params }: { params: { id: string } }) {
             <TributePanel
               tributes={memorial.tributes}
               memorialName={memorial.name}
+              memorialSlug={memorial.id}
               tributeCount={memorial.tributeCount}
               visitorCount={memorial.visitorCount}
             />
@@ -154,17 +173,19 @@ export default function MemorialPage({ params }: { params: { id: string } }) {
         </div>
 
         {/* Timeline Section */}
-        <div className="mt-16">
-          <div className="mb-8 text-center">
-            <h2 className="text-2xl md:text-3xl font-serif font-bold mb-2">
-              <span className="text-gradient-purple">生平时间线</span>
-            </h2>
-            <p className="text-sm text-mist-400">{memorial.name}的一生，每一个重要时刻</p>
+        {memorial.timeline.length > 0 && (
+          <div className="mt-16">
+            <div className="mb-8 text-center">
+              <h2 className="text-2xl md:text-3xl font-serif font-bold mb-2">
+                <span className="text-gradient-purple">生平时间线</span>
+              </h2>
+              <p className="text-sm text-mist-400">{memorial.name}的一生，每一个重要时刻</p>
+            </div>
+            <div className="max-w-3xl mx-auto">
+              <Timeline events={memorial.timeline} name={memorial.name} />
+            </div>
           </div>
-          <div className="max-w-3xl mx-auto">
-            <Timeline events={memorial.timeline} name={memorial.name} />
-          </div>
-        </div>
+        )}
 
         {/* Photo Wall Placeholder */}
         <div className="mt-16">
@@ -185,19 +206,18 @@ export default function MemorialPage({ params }: { params: { id: string } }) {
             ))}
           </div>
           <p className="text-center text-xs text-mist-400 mt-4">
-            💡 原型演示 · 实际使用时可上传真实照片
+            💡 照片上传功能将在下一迭代开放
           </p>
         </div>
 
         {/* Other Memorials */}
-        <div className="mt-16">
-          <h2 className="text-xl font-serif font-semibold text-white mb-6 text-center">
-            其他纪念馆
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {mockMemorials
-              .filter((m) => m.id !== memorial.id)
-              .map((m) => (
+        {otherMemorials.length > 0 && (
+          <div className="mt-16">
+            <h2 className="text-xl font-serif font-semibold text-white mb-6 text-center">
+              其他纪念馆
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {otherMemorials.map((m) => (
                 <Link
                   key={m.id}
                   href={`/memorial/${m.id}`}
@@ -205,7 +225,7 @@ export default function MemorialPage({ params }: { params: { id: string } }) {
                 >
                   <div className="flex items-center gap-3">
                     <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-midnight-700 to-midnight-800 flex items-center justify-center text-2xl">
-                      {m.id === "zhanglaoshi" ? "📖" : m.id === "linnainai" ? "🥟" : "⚕️"}
+                      {getAvatarEmoji(m)}
                     </div>
                     <div>
                       <div className="text-sm font-semibold text-white group-hover:text-amethyst-400 transition-colors">
@@ -216,8 +236,9 @@ export default function MemorialPage({ params }: { params: { id: string } }) {
                   </div>
                 </Link>
               ))}
+            </div>
           </div>
-        </div>
+        )}
       </section>
 
       <Footer />

@@ -1,43 +1,82 @@
 "use client";
 
 import { useState } from "react";
-import { type Tribute } from "@/lib/mockData";
+import type { Tribute } from "@/lib/types";
 
 interface TributePanelProps {
   tributes: Tribute[];
   memorialName: string;
+  memorialSlug: string;
   tributeCount: number;
   visitorCount: number;
 }
 
-export default function TributePanel({ tributes, memorialName, tributeCount, visitorCount }: TributePanelProps) {
+export default function TributePanel({ tributes, memorialName, memorialSlug, tributeCount, visitorCount }: TributePanelProps) {
   const [activeTab, setActiveTab] = useState<"all" | "flower" | "candle" | "message">("all");
   const [message, setMessage] = useState("");
   const [localTributes, setLocalTributes] = useState(tributes);
+  const [submitting, setSubmitting] = useState(false);
 
   const filteredTributes = activeTab === "all" ? localTributes : localTributes.filter((t) => t.type === activeTab);
 
-  const handleTribute = (type: "flower" | "candle") => {
-    const newTribute: Tribute = {
-      id: `t${Date.now()}`,
-      type,
-      visitor: "你",
-      timestamp: new Date().toISOString().split("T")[0],
-    };
-    setLocalTributes((prev) => [newTribute, ...prev]);
+  const handleTribute = async (type: "flower" | "candle") => {
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/tributes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memorialSlug, type, visitorName: "访客" }),
+      });
+
+      if (!res.ok) throw new Error("请求失败");
+
+      const data = await res.json();
+      setLocalTributes((prev) => [data, ...prev]);
+    } catch {
+      // 失败时仍然显示（乐观更新）
+      const newTribute: Tribute = {
+        id: `t${Date.now()}`,
+        type,
+        visitor: "你",
+        timestamp: new Date().toISOString().split("T")[0],
+      };
+      setLocalTributes((prev) => [newTribute, ...prev]);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const handleSendMessage = () => {
-    if (!message.trim()) return;
-    const newTribute: Tribute = {
-      id: `t${Date.now()}`,
-      type: "message",
-      visitor: "你",
-      content: message.trim(),
-      timestamp: new Date().toISOString().split("T")[0],
-    };
-    setLocalTributes((prev) => [newTribute, ...prev]);
-    setMessage("");
+  const handleSendMessage = async () => {
+    if (!message.trim() || submitting) return;
+
+    const content = message.trim();
+    setSubmitting(true);
+
+    try {
+      const res = await fetch("/api/tributes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memorialSlug, type: "message", visitorName: "访客", content }),
+      });
+
+      if (!res.ok) throw new Error("请求失败");
+
+      const data = await res.json();
+      setLocalTributes((prev) => [data, ...prev]);
+      setMessage("");
+    } catch {
+      const newTribute: Tribute = {
+        id: `t${Date.now()}`,
+        type: "message",
+        visitor: "你",
+        content,
+        timestamp: new Date().toISOString().split("T")[0],
+      };
+      setLocalTributes((prev) => [newTribute, ...prev]);
+      setMessage("");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const iconMap = {
@@ -52,7 +91,8 @@ export default function TributePanel({ tributes, memorialName, tributeCount, vis
       <div className="grid grid-cols-2 gap-4">
         <button
           onClick={() => handleTribute("flower")}
-          className="glass-card p-6 text-center group hover:glow-border transition-all duration-300"
+          disabled={submitting}
+          className="glass-card p-6 text-center group hover:glow-border transition-all duration-300 disabled:opacity-50"
         >
           <div className="text-4xl mb-2 group-hover:scale-125 transition-transform duration-300">🌸</div>
           <div className="text-sm text-mist-300 font-medium">献花</div>
@@ -60,7 +100,8 @@ export default function TributePanel({ tributes, memorialName, tributeCount, vis
         </button>
         <button
           onClick={() => handleTribute("candle")}
-          className="glass-card p-6 text-center group hover:glow-border transition-all duration-300"
+          disabled={submitting}
+          className="glass-card p-6 text-center group hover:glow-border transition-all duration-300 disabled:opacity-50"
         >
           <div className="text-4xl mb-2 group-hover:scale-125 transition-transform duration-300 animate-flicker">🕯️</div>
           <div className="text-sm text-mist-300 font-medium">点烛</div>
@@ -80,10 +121,10 @@ export default function TributePanel({ tributes, memorialName, tributeCount, vis
         <div className="flex justify-end mt-2">
           <button
             onClick={handleSendMessage}
-            disabled={!message.trim()}
+            disabled={!message.trim() || submitting}
             className="px-4 py-1.5 rounded-lg bg-amethyst-500/20 text-amethyst-300 text-sm border border-amethyst-500/20 hover:bg-amethyst-500/30 disabled:opacity-40 transition-colors"
           >
-            留言
+            {submitting ? "发送中..." : "留言"}
           </button>
         </div>
       </div>

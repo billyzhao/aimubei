@@ -1,4 +1,4 @@
-import { type TimelineEvent } from "@/lib/mockData";
+import type { TimelineEvent } from "@/lib/types";
 
 interface TimelineProps {
   events: TimelineEvent[];
