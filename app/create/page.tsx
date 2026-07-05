@@ -1,16 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 
 export default function CreatePage() {
   const router = useRouter();
+  const { data: session, status } = useSession();
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+
+  // 未登录时重定向到登录页
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      router.push("/login?callbackUrl=/create");
+    }
+  }, [status, router]);
   const [formData, setFormData] = useState({
     name: "",
     title: "",
@@ -89,6 +98,11 @@ export default function CreatePage() {
       const data = await res.json();
 
       if (!res.ok) {
+        if (res.status === 401) {
+          setError("请先登录后再创建纪念馆");
+          setTimeout(() => router.push("/login?callbackUrl=/create"), 1500);
+          return;
+        }
         setError(data.error || "创建失败");
         setSubmitting(false);
         return;
@@ -105,6 +119,14 @@ export default function CreatePage() {
     <div className="min-h-screen flex flex-col">
       <Navbar />
 
+      {status !== "authenticated" ? (
+        <section className="pt-24 pb-12 flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <div className="text-4xl mb-4">⏳</div>
+            <p className="text-mist-400">正在验证登录状态...</p>
+          </div>
+        </section>
+      ) : (
       <section className="pt-24 pb-12 flex-1">
         <div className="max-w-3xl mx-auto px-6">
           {/* Header */}
@@ -494,6 +516,7 @@ export default function CreatePage() {
           </div>
         </div>
       </section>
+      )}
 
       <Footer />
     </div>

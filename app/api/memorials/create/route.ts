@@ -45,8 +45,9 @@ export async function POST(req: Request) {
 
     const data = result.data;
 
-    // 生成 slug：拼音转拼音或直接用时间戳
-    const slug = `${data.name}-${Date.now().toString(36)}`;
+    // 生成 slug：纯 ASCII 字符，避免中文 URL 编码问题
+    const randomStr = Math.random().toString(36).substring(2, 8);
+    const slug = `m-${Date.now().toString(36)}-${randomStr}`;
 
     const memorial = await prisma.memorial.create({
       data: {
