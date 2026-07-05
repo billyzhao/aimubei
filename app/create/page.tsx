@@ -1,0 +1,425 @@
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
+
+export default function CreatePage() {
+  const [step, setStep] = useState(1);
+  const [formData, setFormData] = useState({
+    name: "",
+    title: "",
+    birthYear: "",
+    deathYear: "",
+    gender: "male",
+    bio: "",
+    personality: "",
+    traits: [] as string[],
+    photos: [] as string[],
+    voiceSample: false,
+    plan: "pro",
+  });
+
+  const steps = [
+    { num: 1, title: "基本信息", icon: "📝" },
+    { num: 2, title: "生平故事", icon: "📖" },
+    { num: 3, title: "性格特征", icon: "🧠" },
+    { num: 4, title: "照片资料", icon: "📸" },
+    { num: 5, title: "语音样本", icon: "🎙️" },
+    { num: 6, title: "选择方案", icon: "⭐" },
+  ];
+
+  const traitOptions = ["温和", "幽默", "严肃", "开朗", "内向", "热情", "睿智", "坚韧", "温柔", "严谨", "乐观", "沉静"];
+
+  const toggleTrait = (trait: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      traits: prev.traits.includes(trait)
+        ? prev.traits.filter((t) => t !== trait)
+        : [...prev.traits, trait],
+    }));
+  };
+
+  const canProceed = () => {
+    switch (step) {
+      case 1: return formData.name && formData.birthYear && formData.deathYear;
+      case 2: return formData.bio.length > 10;
+      case 3: return formData.traits.length > 0;
+      default: return true;
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex flex-col">
+      <Navbar />
+
+      <section className="pt-24 pb-12 flex-1">
+        <div className="max-w-3xl mx-auto px-6">
+          {/* Header */}
+          <div className="text-center mb-10">
+            <h1 className="text-3xl md:text-4xl font-serif font-bold mb-3">
+              <span className="text-gradient-purple">创建纪念馆</span>
+            </h1>
+            <p className="text-mist-400">为你爱的人，建造一座永恒的数字纪念空间</p>
+          </div>
+
+          {/* Step Progress */}
+          <div className="flex items-center justify-between mb-10 overflow-x-auto pb-2">
+            {steps.map((s, i) => (
+              <div key={s.num} className="flex items-center flex-shrink-0">
+                <div className="flex flex-col items-center">
+                  <div
+                    className={`w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center text-lg transition-all duration-300 ${
+                      step > s.num
+                        ? "bg-gradient-to-br from-amethyst-500 to-amethyst-700 text-white shadow-lg shadow-amethyst-500/30"
+                        : step === s.num
+                        ? "bg-gradient-to-br from-amethyst-500 to-amethyst-700 text-white shadow-lg shadow-amethyst-500/40 scale-110"
+                        : "bg-midnight-800 text-mist-400 border border-amethyst-500/15"
+                    }`}
+                  >
+                    {step > s.num ? "✓" : s.icon}
+                  </div>
+                  <span className={`text-xs mt-1.5 hidden md:block ${step >= s.num ? "text-amethyst-400" : "text-mist-400"}`}>
+                    {s.title}
+                  </span>
+                </div>
+                {i < steps.length - 1 && (
+                  <div className={`w-8 md:w-12 h-0.5 mx-1 ${step > s.num ? "bg-amethyst-500" : "bg-midnight-700"}`} />
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Form Card */}
+          <div className="glass-card p-8 glow-border">
+            {/* Step 1: Basic Info */}
+            {step === 1 && (
+              <div className="space-y-5 animate-fade-in">
+                <h2 className="text-xl font-semibold text-white mb-4">基本信息</h2>
+
+                <div>
+                  <label className="text-sm text-mist-300 mb-2 block">姓名 *</label>
+                  <input
+                    type="text"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="逝者姓名"
+                    className="w-full bg-midnight-700/60 text-mist-200 placeholder-mist-400/50 rounded-xl px-4 py-3 text-sm border border-amethyst-500/15 focus:outline-none focus:border-amethyst-500/40 transition-colors"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm text-mist-300 mb-2 block">称谓</label>
+                  <input
+                    type="text"
+                    value={formData.title}
+                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                    placeholder="如：人民教师 · 1948-2023"
+                    className="w-full bg-midnight-700/60 text-mist-200 placeholder-mist-400/50 rounded-xl px-4 py-3 text-sm border border-amethyst-500/15 focus:outline-none focus:border-amethyst-500/40 transition-colors"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm text-mist-300 mb-2 block">出生年份 *</label>
+                    <input
+                      type="number"
+                      value={formData.birthYear}
+                      onChange={(e) => setFormData({ ...formData, birthYear: e.target.value })}
+                      placeholder="1948"
+                      className="w-full bg-midnight-700/60 text-mist-200 placeholder-mist-400/50 rounded-xl px-4 py-3 text-sm border border-amethyst-500/15 focus:outline-none focus:border-amethyst-500/40 transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm text-mist-300 mb-2 block">逝世年份 *</label>
+                    <input
+                      type="number"
+                      value={formData.deathYear}
+                      onChange={(e) => setFormData({ ...formData, deathYear: e.target.value })}
+                      placeholder="2023"
+                      className="w-full bg-midnight-700/60 text-mist-200 placeholder-mist-400/50 rounded-xl px-4 py-3 text-sm border border-amethyst-500/15 focus:outline-none focus:border-amethyst-500/40 transition-colors"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-sm text-mist-300 mb-2 block">性别</label>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setFormData({ ...formData, gender: "male" })}
+                      className={`px-6 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                        formData.gender === "male"
+                          ? "bg-amethyst-500/20 text-amethyst-300 border border-amethyst-500/30"
+                          : "bg-midnight-700/40 text-mist-400 border border-transparent"
+                      }`}
+                    >
+                      男
+                    </button>
+                    <button
+                      onClick={() => setFormData({ ...formData, gender: "female" })}
+                      className={`px-6 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                        formData.gender === "female"
+                          ? "bg-amethyst-500/20 text-amethyst-300 border border-amethyst-500/30"
+                          : "bg-midnight-700/40 text-mist-400 border border-transparent"
+                      }`}
+                    >
+                      女
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Step 2: Bio */}
+            {step === 2 && (
+              <div className="space-y-5 animate-fade-in">
+                <h2 className="text-xl font-semibold text-white mb-4">生平故事</h2>
+                <p className="text-sm text-mist-400">请描述逝者的生平经历。信息越丰富，AI复刻越真实。</p>
+
+                <div>
+                  <label className="text-sm text-mist-300 mb-2 block">生平简介 *</label>
+                  <textarea
+                    value={formData.bio}
+                    onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
+                    placeholder="请描述逝者的生平、职业、成就、性格特点等..."
+                    rows={6}
+                    className="w-full bg-midnight-700/60 text-mist-200 placeholder-mist-400/50 rounded-xl px-4 py-3 text-sm border border-amethyst-500/15 focus:outline-none focus:border-amethyst-500/40 transition-colors resize-none"
+                  />
+                  <div className="text-right text-xs text-mist-400 mt-1">{formData.bio.length} 字</div>
+                </div>
+
+                <div>
+                  <label className="text-sm text-mist-300 mb-2 block">经典语录（可选）</label>
+                  <input
+                    type="text"
+                    placeholder="TA常说的一句话..."
+                    className="w-full bg-midnight-700/60 text-mist-200 placeholder-mist-400/50 rounded-xl px-4 py-3 text-sm border border-amethyst-500/15 focus:outline-none focus:border-amethyst-500/40 transition-colors"
+                  />
+                </div>
+
+                <div className="glass-card p-4 bg-amethyst-500/5">
+                  <div className="flex gap-3">
+                    <span className="text-xl">💡</span>
+                    <div>
+                      <p className="text-sm text-mist-300 font-medium mb-1">提示</p>
+                      <p className="text-xs text-mist-400 leading-relaxed">
+                        你可以上传TA的日记、信件、朋友圈、聊天记录等文字资料，帮助AI更准确地还原TA的说话风格。
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Step 3: Personality */}
+            {step === 3 && (
+              <div className="space-y-5 animate-fade-in">
+                <h2 className="text-xl font-semibold text-white mb-4">性格特征</h2>
+                <p className="text-sm text-mist-400">选择最符合TA性格的标签（可多选）</p>
+
+                <div className="flex flex-wrap gap-3">
+                  {traitOptions.map((trait) => (
+                    <button
+                      key={trait}
+                      onClick={() => toggleTrait(trait)}
+                      className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
+                        formData.traits.includes(trait)
+                          ? "bg-gradient-to-r from-amethyst-600 to-amethyst-500 text-white shadow-lg shadow-amethyst-500/20 scale-105"
+                          : "bg-midnight-700/40 text-mist-400 border border-amethyst-500/15 hover:border-amethyst-500/30"
+                      }`}
+                    >
+                      {trait}
+                    </button>
+                  ))}
+                </div>
+
+                <div>
+                  <label className="text-sm text-mist-300 mb-2 block">性格描述（可选）</label>
+                  <textarea
+                    value={formData.personality}
+                    onChange={(e) => setFormData({ ...formData, personality: e.target.value })}
+                    placeholder="更详细地描述TA的性格、说话习惯、爱好等..."
+                    rows={4}
+                    className="w-full bg-midnight-700/60 text-mist-200 placeholder-mist-400/50 rounded-xl px-4 py-3 text-sm border border-amethyst-500/15 focus:outline-none focus:border-amethyst-500/40 transition-colors resize-none"
+                  />
+                </div>
+
+                {formData.traits.length > 0 && (
+                  <div className="glass-card p-4">
+                    <p className="text-xs text-mist-400 mb-2">已选择 {formData.traits.length} 个特征：</p>
+                    <div className="flex flex-wrap gap-2">
+                      {formData.traits.map((t) => (
+                        <span key={t} className="px-3 py-1 rounded-full bg-amethyst-500/20 text-xs text-amethyst-300">
+                          {t}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Step 4: Photos */}
+            {step === 4 && (
+              <div className="space-y-5 animate-fade-in">
+                <h2 className="text-xl font-semibold text-white mb-4">照片资料</h2>
+                <p className="text-sm text-mist-400">上传逝者的照片，用于纪念馆展示</p>
+
+                <div className="border-2 border-dashed border-amethyst-500/20 rounded-2xl p-12 text-center hover:border-amethyst-500/40 transition-colors cursor-pointer">
+                  <div className="text-5xl mb-4">📸</div>
+                  <p className="text-sm text-mist-300 font-medium mb-1">点击或拖拽上传照片</p>
+                  <p className="text-xs text-mist-400">支持 JPG、PNG 格式，单张不超过 10MB</p>
+                </div>
+
+                <div className="grid grid-cols-3 gap-3">
+                  {["🌅", "👨‍🏫", "🎓", "🏆", "🎂", "✈️"].map((emoji, i) => (
+                    <div key={i} className="aspect-square glass-card flex items-center justify-center text-4xl relative group cursor-pointer">
+                      {emoji}
+                      <div className="absolute inset-0 bg-midnight-950/80 rounded-2xl opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                        <span className="text-xs text-rose-400">🗑️ 删除</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="glass-card p-4 bg-amethyst-500/5">
+                  <div className="flex gap-3">
+                    <span className="text-xl">💡</span>
+                    <p className="text-xs text-mist-400 leading-relaxed">
+                      建议上传不同时期的照片：年轻时的、中年时的、与家人的合影等。照片越丰富，纪念馆越生动。
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Step 5: Voice */}
+            {step === 5 && (
+              <div className="space-y-5 animate-fade-in">
+                <h2 className="text-xl font-semibold text-white mb-4">语音样本</h2>
+                <p className="text-sm text-mist-400">上传逝者的语音录音，用于克隆原声</p>
+
+                <div className="glass-card p-8 text-center">
+                  <div className="text-5xl mb-4">🎙️</div>
+                  <h3 className="text-lg font-semibold text-white mb-2">上传语音样本</h3>
+                  <p className="text-sm text-mist-400 mb-6">至少需要 3 分钟的清晰录音</p>
+
+                  <div className="border-2 border-dashed border-amethyst-500/20 rounded-2xl p-8 hover:border-amethyst-500/40 transition-colors cursor-pointer mb-4">
+                    <p className="text-sm text-mist-300">点击或拖拽上传音频文件</p>
+                    <p className="text-xs text-mist-400 mt-1">支持 MP3、WAV、M4A 格式</p>
+                  </div>
+
+                  <div className="flex items-center justify-center gap-4">
+                    <button className="btn-secondary text-sm py-2 px-4">
+                      🎤 开始录音
+                    </button>
+                    <span className="text-xs text-mist-400">或上传已有录音</span>
+                  </div>
+                </div>
+
+                <div className="glass-card p-4 bg-gold-400/5 border-gold-400/20">
+                  <div className="flex gap-3">
+                    <span className="text-xl">⭐</span>
+                    <div>
+                      <p className="text-sm text-gold-300 font-medium mb-1">Pro版功能</p>
+                      <p className="text-xs text-mist-400 leading-relaxed">
+                        语音克隆是Pro版功能。基础版用户可先跳过此步，后续升级后补充。
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setFormData({ ...formData, voiceSample: !formData.voiceSample })}
+                  className="text-sm text-mist-400 hover:text-amethyst-400 transition-colors"
+                >
+                  {formData.voiceSample ? "✓ " : ""}暂不上传，稍后补充
+                </button>
+              </div>
+            )}
+
+            {/* Step 6: Plan */}
+            {step === 6 && (
+              <div className="space-y-5 animate-fade-in">
+                <h2 className="text-xl font-semibold text-white mb-4">选择方案</h2>
+
+                <div className="space-y-3">
+                  {[
+                    { id: "basic", name: "基础版", price: "¥0", desc: "永久免费", features: ["纪念馆创建", "基础信息展示", "生平时间线", "祭奠互动", "AI对话（每日3条）"] },
+                    { id: "pro", name: "Pro版", price: "¥299/年", desc: "推荐", features: ["基础版全部功能", "无限AI对话", "语音克隆", "时光信箱", "照片墙500张", "视频纪念"] },
+                    { id: "family", name: "家族版", price: "¥899/年", desc: "家族传承", features: ["Pro版全部功能", "家族树", "记忆胶囊", "跨代际传承", "无限存储", "专属客服"] },
+                  ].map((plan) => (
+                    <button
+                      key={plan.id}
+                      onClick={() => setFormData({ ...formData, plan: plan.id })}
+                      className={`w-full text-left p-5 rounded-2xl transition-all duration-300 ${
+                        formData.plan === plan.id
+                          ? "bg-amethyst-500/10 border-2 border-amethyst-500/40 glow-border"
+                          : "bg-midnight-800/40 border-2 border-transparent hover:border-amethyst-500/20"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg font-semibold text-white">{plan.name}</span>
+                          {plan.desc === "推荐" && (
+                            <span className="px-2 py-0.5 rounded-full bg-amethyst-500/20 text-xs text-amethyst-300">推荐</span>
+                          )}
+                        </div>
+                        <span className="text-lg font-bold text-gradient-gold">{plan.price}</span>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {plan.features.map((f) => (
+                          <span key={f} className="text-xs text-mist-400">✓ {f}</span>
+                        ))}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Navigation */}
+            <div className="flex justify-between mt-8 pt-6 border-t border-amethyst-500/10">
+              <button
+                onClick={() => setStep(Math.max(1, step - 1))}
+                disabled={step === 1}
+                className="btn-secondary text-sm disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                ← 上一步
+              </button>
+
+              {step < 6 ? (
+                <button
+                  onClick={() => setStep(step + 1)}
+                  disabled={!canProceed()}
+                  className="btn-primary text-sm disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  下一步 →
+                </button>
+              ) : (
+                <Link href="/memorial/zhanglaoshi" className="btn-gold text-sm">
+                  ✨ 创建纪念馆
+                </Link>
+              )}
+            </div>
+          </div>
+
+          {/* Privacy Notice */}
+          <div className="glass-card p-4 mt-6 flex gap-3">
+            <span className="text-xl flex-shrink-0">🔒</span>
+            <div>
+              <p className="text-sm text-mist-300 font-medium mb-1">隐私保护承诺</p>
+              <p className="text-xs text-mist-400 leading-relaxed">
+                所有上传的数据均经过加密存储，归你所有。你可以随时导出或删除所有数据。
+                AI复刻功能遵循知情同意原则，需要本人授权或直系亲属同意。
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <Footer />
+    </div>
+  );
+}

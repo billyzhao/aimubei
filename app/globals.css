@@ -1,0 +1,122 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-primary: #0a0612;
+  --bg-secondary: #120a1f;
+  --bg-card: #1a1029;
+  --bg-elevated: #251738;
+  --accent-purple: #8b5cf6;
+  --accent-gold: #fbbf24;
+  --accent-rose: #fb7185;
+  --text-primary: #e2d8f0;
+  --text-secondary: #a890c4;
+  --text-muted: #6b5b8a;
+  --border-subtle: rgba(139, 92, 246, 0.15);
+  --border-glow: rgba(139, 92, 246, 0.3);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  padding: 0;
+  margin: 0;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(139, 92, 246, 0.15), transparent),
+    radial-gradient(ellipse 60% 40% at 80% 100%, rgba(251, 191, 36, 0.05), transparent);
+  background-attachment: fixed;
+  min-height: 100vh;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--bg-elevated);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-purple);
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-midnight-800/60 backdrop-blur-xl border border-amethyst-500/15 rounded-2xl;
+  }
+
+  .glow-border {
+    @apply border border-amethyst-500/30;
+    box-shadow: 0 0 20px rgba(139, 92, 246, 0.1), inset 0 0 20px rgba(139, 92, 246, 0.05);
+  }
+
+  .btn-primary {
+    @apply px-6 py-3 rounded-xl bg-gradient-to-r from-amethyst-600 to-amethyst-500 text-white font-medium transition-all duration-300 hover:shadow-lg hover:shadow-amethyst-500/30 hover:-translate-y-0.5;
+  }
+
+  .btn-secondary {
+    @apply px-6 py-3 rounded-xl border border-amethyst-500/30 text-mist-200 font-medium transition-all duration-300 hover:bg-amethyst-500/10 hover:border-amethyst-500/50;
+  }
+
+  .btn-gold {
+    @apply px-6 py-3 rounded-xl bg-gradient-to-r from-gold-500 to-gold-400 text-midnight-950 font-semibold transition-all duration-300 hover:shadow-lg hover:shadow-gold-400/30 hover:-translate-y-0.5;
+  }
+
+  .section-padding {
+    @apply px-6 md:px-12 lg:px-20 py-16 md:py-24;
+  }
+
+  .text-gradient-purple {
+    @apply bg-gradient-to-r from-amethyst-400 via-mist-200 to-amethyst-400 bg-clip-text text-transparent;
+  }
+
+  .text-gradient-gold {
+    @apply bg-gradient-to-r from-gold-300 to-gold-500 bg-clip-text text-transparent;
+  }
+
+  .starfield {
+    background-image:
+      radial-gradient(1px 1px at 20% 30%, rgba(255, 255, 255, 0.15), transparent),
+      radial-gradient(1px 1px at 60% 70%, rgba(255, 255, 255, 0.1), transparent),
+      radial-gradient(1px 1px at 80% 10%, rgba(255, 255, 255, 0.12), transparent),
+      radial-gradient(2px 2px at 40% 90%, rgba(167, 139, 250, 0.1), transparent),
+      radial-gradient(1px 1px at 90% 50%, rgba(255, 255, 255, 0.08), transparent);
+    background-size: 200% 200%;
+    background-repeat: repeat;
+  }
+}
+
+@layer utilities {
+  .text-shadow-glow {
+    text-shadow: 0 0 30px rgba(139, 92, 246, 0.5);
+  }
+
+  .text-shadow-soft {
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+  }
+
+  .bg-gradient-radial {
+    background: radial-gradient(circle, var(--tw-gradient-stops));
+  }
+
+  .perspective-1000 {
+    perspective: 1000px;
+  }
+}
