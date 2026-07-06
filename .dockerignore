@@ -9,3 +9,5 @@ prisma/dev.db-journal
 public/uploads/*
 npm-debug.log*
 .DS_Store
+deploy_key.pem
+deploy_key.pem.pub
