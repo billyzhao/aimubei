@@ -70,31 +70,39 @@ export default async function DashboardPage() {
             <div className="space-y-4">
               <h2 className="text-lg font-semibold text-white mb-4">我创建的纪念馆</h2>
               {memorials.map((m) => (
-                <Link
+                <div
                   key={m.id}
-                  href={`/memorial/${m.slug}`}
-                  className="glass-card p-5 hover:glow-border transition-all duration-300 group block"
+                  className="glass-card p-5 hover:glow-border transition-all duration-300 group"
                 >
                   <div className="flex items-center gap-4">
                     {/* Avatar */}
-                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-midnight-700 to-midnight-800 border border-amethyst-500/20 flex items-center justify-center text-3xl flex-shrink-0">
-                      {getAvatarEmoji(m.title, [])}
+                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-midnight-700 to-midnight-800 border border-amethyst-500/20 flex items-center justify-center text-3xl flex-shrink-0 overflow-hidden">
+                      {m.avatar ? (
+                        <img src={m.avatar} alt={m.name} className="w-full h-full object-cover" />
+                      ) : (
+                        getAvatarEmoji(m.title, [])
+                      )}
                     </div>
 
                     {/* Info */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <h3 className="text-lg font-semibold text-white group-hover:text-amethyst-400 transition-colors">
+                        <Link href={`/memorial/${m.slug}`} className="text-lg font-semibold text-white group-hover:text-amethyst-400 transition-colors">
                           {m.name}
-                        </h3>
+                        </Link>
                         {m.isVerified && (
                           <span className="px-2 py-0.5 rounded-full bg-amethyst-500/10 text-xs text-amethyst-300 border border-amethyst-500/20">
                             ✓ 已认证
                           </span>
                         )}
-                        {!m.isPublic && (
+                        {m.visibility === "PRIVATE" && (
                           <span className="px-2 py-0.5 rounded-full bg-midnight-700 text-xs text-mist-400 border border-amethyst-500/10">
                             🔒 私密
+                          </span>
+                        )}
+                        {m.visibility === "FAMILY" && (
+                          <span className="px-2 py-0.5 rounded-full bg-midnight-700 text-xs text-mist-400 border border-amethyst-500/10">
+                            👨‍👩‍👧‍👦 亲友
                           </span>
                         )}
                       </div>
@@ -102,16 +110,28 @@ export default async function DashboardPage() {
                       <div className="flex items-center gap-4 text-xs text-mist-400">
                         <span>👁️ {m.visitorCount.toLocaleString()} 访问</span>
                         <span>🌸 {m.tributeCount.toLocaleString()} 祭奠</span>
+                        <span>📸 {m.photoCount} 照片</span>
                         <span>📅 {new Date(m.createdAt).toLocaleDateString("zh-CN")}</span>
                       </div>
                     </div>
 
-                    {/* Arrow */}
-                    <div className="text-amethyst-400 group-hover:translate-x-1 transition-transform flex-shrink-0">
-                      →
+                    {/* Actions */}
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <Link
+                        href={`/edit/${m.slug}`}
+                        className="px-3 py-2 rounded-xl bg-amethyst-500/10 text-amethyst-300 border border-amethyst-500/20 text-xs hover:bg-amethyst-500/20 transition-colors"
+                      >
+                        ✏️ 编辑
+                      </Link>
+                      <Link
+                        href={`/memorial/${m.slug}`}
+                        className="text-amethyst-400 group-hover:translate-x-1 transition-transform"
+                      >
+                        →
+                      </Link>
                     </div>
                   </div>
-                </Link>
+                </div>
               ))}
             </div>
           ) : (

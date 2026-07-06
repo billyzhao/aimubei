@@ -30,6 +30,8 @@ model User {
   chatMessages  ChatMessage[]
   accounts      Account[]
   sessions      Session[]
+  inviteCodes   InviteCode[] @relation("InviteCreator")
+  usedInvites   InviteCode[] @relation("InviteUser")
 }
 
 // NextAuth 所需表
@@ -86,7 +88,9 @@ model Memorial {
   deathYear     Int
   avatar        String?
   coverImage    String?
-  isPublic      Boolean         @default(true)
+  // 权限：PUBLIC(公开) | FAMILY(亲友) | PRIVATE(私密)
+  visibility    String          @default("PUBLIC")
+  isPublic      Boolean         @default(true) // 旧字段保留兼容，与visibility同步
   isVerified    Boolean         @default(false)
   visitorCount  Int             @default(0)
   tributeCount  Int             @default(0)
@@ -100,6 +104,8 @@ model Memorial {
   tributes      Tribute[]
   photos        Photo[]
   chatMessages  ChatMessage[]
+  inviteCodes   InviteCode[]
+  letters       TimeLetter[]
 }
 
 model TimelineEvent {
@@ -153,6 +159,47 @@ model ChatMessage {
 
   memorial Memorial @relation(fields: [memorialId], references: [id], onDelete: Cascade)
   user     User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([memorialId])
+}
+
+// ====================================
+// 邀请码（亲友权限）
+// ====================================
+
+model InviteCode {
+  id          String    @id @default(cuid())
+  code        String    @unique
+  memorialId  String
+  createdById String
+  usedById    String?
+  expiresAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  memorial   Memorial   @relation(fields: [memorialId], references: [id], onDelete: Cascade)
+  createdBy  User       @relation("InviteCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  usedBy     User?      @relation("InviteUser", fields: [usedById], references: [id], onDelete: SetNull)
+
+  @@index([memorialId])
+}
+
+// ====================================
+// 时光信箱（定时信件 + AI回信）
+// ====================================
+
+model TimeLetter {
+  id          String    @id @default(cuid())
+  memorialId  String
+  authorName  String
+  authorId    String?
+  content     String
+  // PENDING(待送达) | DELIVERED(已送达) | REPLIED(已AI回信)
+  status      String    @default("PENDING")
+  deliverAt   DateTime
+  aiReply     String?
+  createdAt   DateTime  @default(now())
+
+  memorial Memorial @relation(fields: [memorialId], references: [id], onDelete: Cascade)
 
   @@index([memorialId])
 }

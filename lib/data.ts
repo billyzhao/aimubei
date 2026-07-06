@@ -11,6 +11,7 @@ export async function getAllMemorials(): Promise<Memorial[]> {
     include: {
       timeline: { orderBy: { order: "asc" } },
       tributes: { orderBy: { createdAt: "desc" }, take: 10 },
+      photos: { orderBy: { order: "asc" } },
       _count: { select: { tributes: true } },
     },
     orderBy: { createdAt: "desc" },
@@ -44,7 +45,7 @@ export async function getMemorialsByOwner(ownerId: string) {
   const memorials = await prisma.memorial.findMany({
     where: { ownerId },
     include: {
-      _count: { select: { tributes: true } },
+      _count: { select: { tributes: true, photos: true } },
     },
     orderBy: { createdAt: "desc" },
   });
@@ -60,10 +61,66 @@ export async function getMemorialsByOwner(ownerId: string) {
     avatar: m.avatar,
     visitorCount: m.visitorCount,
     tributeCount: m._count.tributes,
+    photoCount: m._count.photos,
     isPublic: m.isPublic,
+    visibility: m.visibility,
     isVerified: m.isVerified,
     createdAt: m.createdAt,
   }));
+}
+
+// 获取纪念馆编辑数据（含时间线、照片、权限）
+export async function getMemorialForEdit(slug: string, userId: string) {
+  const memorial = await prisma.memorial.findUnique({
+    where: { slug },
+    include: {
+      timeline: { orderBy: { order: "asc" } },
+      photos: { orderBy: { order: "asc" } },
+      inviteCodes: {
+        orderBy: { createdAt: "desc" },
+        take: 20,
+      },
+    },
+  });
+
+  if (!memorial) return null;
+  if (memorial.ownerId !== userId) return null;
+
+  return {
+    id: memorial.id,
+    slug: memorial.slug,
+    name: memorial.name,
+    title: memorial.title,
+    bio: memorial.bio,
+    personality: memorial.personality || "",
+    traits: safeParseArray(memorial.traits),
+    quotes: safeParseArray(memorial.quotes),
+    birthYear: memorial.birthYear,
+    deathYear: memorial.deathYear,
+    avatar: memorial.avatar || "",
+    coverImage: memorial.coverImage || "",
+    visibility: memorial.visibility,
+    isVerified: memorial.isVerified,
+    timeline: memorial.timeline.map((t) => ({
+      id: t.id,
+      year: t.year,
+      title: t.title,
+      description: t.description,
+      icon: t.icon,
+    })),
+    photos: memorial.photos.map((p) => ({
+      id: p.id,
+      url: p.url,
+      caption: p.caption || "",
+    })),
+    inviteCodes: memorial.inviteCodes.map((c) => ({
+      id: c.id,
+      code: c.code,
+      expiresAt: c.expiresAt?.toISOString() || null,
+      usedById: c.usedById,
+      createdAt: c.createdAt.toISOString(),
+    })),
+  };
 }
 
 export async function createMemorial(data: {

@@ -5,7 +5,10 @@ import Footer from "@/components/Footer";
 import MemorialChat from "@/components/MemorialChat";
 import Timeline from "@/components/Timeline";
 import TributePanel from "@/components/TributePanel";
+import PhotoWall from "@/components/PhotoWall";
 import { getMemorialBySlug, getAllMemorials } from "@/lib/data";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import type { Memorial } from "@/lib/types";
 
 function getAvatarEmoji(memorial: { name: string; title: string; traits: string[] }): string {
@@ -30,6 +33,20 @@ export default async function MemorialPage({ params }: { params: { id: string } 
   const allMemorials = await getAllMemorials();
   const otherMemorials = allMemorials.filter((m) => m.id !== memorial.id).slice(0, 3);
 
+  // 检查是否是owner（显示编辑按钮）
+  const session = await getServerSession(authOptions);
+  const memorialRecord = await getAllMemorials();
+  const currentMemorial = memorialRecord.find((m) => m.id === params.id);
+  let isOwner = false;
+  if (session?.user?.id && currentMemorial) {
+    const { prisma } = await import("@/lib/db");
+    const dbMemorial = await prisma.memorial.findUnique({
+      where: { slug: params.id },
+      select: { ownerId: true },
+    });
+    isOwner = dbMemorial?.ownerId === session.user.id;
+  }
+
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
@@ -44,13 +61,26 @@ export default async function MemorialPage({ params }: { params: { id: string } 
             ← 返回纪念馆列表
           </Link>
 
+          {isOwner && (
+            <Link
+              href={`/edit/${memorial.id}`}
+              className="float-right text-sm px-4 py-2 rounded-xl bg-amethyst-500/20 text-amethyst-300 border border-amethyst-500/30 hover:bg-amethyst-500/30 transition-colors"
+            >
+              ✏️ 编辑纪念馆
+            </Link>
+          )}
+
           {/* Memorial Card */}
           <div className="glass-card p-8 md:p-12 glow-border">
             <div className="flex flex-col md:flex-row gap-8 items-center md:items-start">
               {/* Avatar */}
               <div className="flex-shrink-0">
-                <div className="w-32 h-32 md:w-40 md:h-40 rounded-2xl bg-gradient-to-br from-midnight-700 to-midnight-800 border-2 border-amethyst-500/30 flex items-center justify-center text-6xl md:text-7xl shadow-lg shadow-amethyst-500/20">
-                  {getAvatarEmoji(memorial)}
+                <div className="w-32 h-32 md:w-40 md:h-40 rounded-2xl bg-gradient-to-br from-midnight-700 to-midnight-800 border-2 border-amethyst-500/30 flex items-center justify-center text-6xl md:text-7xl shadow-lg shadow-amethyst-500/20 overflow-hidden">
+                  {memorial.avatar ? (
+                    <img src={memorial.avatar} alt={memorial.name} className="w-full h-full object-cover" />
+                  ) : (
+                    getAvatarEmoji(memorial)
+                  )}
                 </div>
                 {memorial.isVerified && (
                   <div className="mt-3 flex items-center justify-center gap-1 text-xs text-amethyst-400">
@@ -187,7 +217,7 @@ export default async function MemorialPage({ params }: { params: { id: string } 
           </div>
         )}
 
-        {/* Photo Wall Placeholder */}
+        {/* Photo Wall */}
         <div className="mt-16">
           <div className="mb-8 text-center">
             <h2 className="text-2xl md:text-3xl font-serif font-bold mb-2">
@@ -195,19 +225,7 @@ export default async function MemorialPage({ params }: { params: { id: string } 
             </h2>
             <p className="text-sm text-mist-400">那些被定格的温暖瞬间</p>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {["🌅", "👨‍🏫", "🎓", "🏆", "🎂", "✈️", "🏡", "🌿"].map((emoji, i) => (
-              <div
-                key={i}
-                className="aspect-square glass-card flex items-center justify-center text-5xl hover:scale-105 hover:glow-border transition-all duration-300 cursor-pointer"
-              >
-                {emoji}
-              </div>
-            ))}
-          </div>
-          <p className="text-center text-xs text-mist-400 mt-4">
-            💡 照片上传功能将在下一迭代开放
-          </p>
+          <PhotoWall photos={memorial.photos} />
         </div>
 
         {/* Other Memorials */}

@@ -65,9 +65,13 @@ export default async function MemorialsPage({
                   {/* Cover */}
                   <div className="h-40 bg-gradient-to-br from-midnight-700 to-midnight-800 flex items-center justify-center relative overflow-hidden">
                     <div className="absolute inset-0 starfield opacity-30" />
-                    <div className="text-6xl group-hover:scale-110 transition-transform duration-300 relative z-10">
-                      {getAvatarEmoji(memorial.title, memorial.traits)}
-                    </div>
+                    {memorial.avatar ? (
+                      <img src={memorial.avatar} alt={memorial.name} className="w-full h-full object-cover relative z-10 group-hover:scale-110 transition-transform duration-300" />
+                    ) : (
+                      <div className="text-6xl group-hover:scale-110 transition-transform duration-300 relative z-10">
+                        {getAvatarEmoji(memorial.title, memorial.traits)}
+                      </div>
+                    )}
                     {memorial.isVerified && (
                       <div className="absolute top-3 right-3 px-2 py-1 rounded-full bg-amethyst-500/20 text-xs text-amethyst-300 border border-amethyst-500/30 backdrop-blur-sm">
                         ✓ 已认证
