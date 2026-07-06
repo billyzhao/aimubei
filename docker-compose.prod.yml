@@ -1,0 +1,70 @@
+# 永念 EverMind - 生产环境 Docker Compose
+# 使用: docker compose -f docker-compose.prod.yml up -d
+
+version: "3.8"
+
+services:
+  # PostgreSQL 数据库
+  db:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_DB: evermind
+      POSTGRES_USER: evermind
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-change-me-in-production}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U evermind"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis 缓存（会话/限流）
+  redis:
+    image: redis:7-alpine
+    restart: always
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+
+  # Web 应用
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgresql://evermind:${DB_PASSWORD:-change-me-in-production}@db:5432/evermind
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+    volumes:
+      - uploads_data:/app/public/uploads
+    ports:
+      - "3000:3000"
+
+  # Nginx 反向代理
+  nginx:
+    image: nginx:alpine
+    restart: always
+    depends_on:
+      - web
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "80:80"
+      - "443:443"
+
+volumes:
+  postgres_data:
+  redis_data:
+  uploads_data:
