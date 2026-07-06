@@ -6,6 +6,7 @@ import MemorialChat from "@/components/MemorialChat";
 import Timeline from "@/components/Timeline";
 import TributePanel from "@/components/TributePanel";
 import PhotoWall from "@/components/PhotoWall";
+import TimeLetterPanel from "@/components/TimeLetterPanel";
 import { getMemorialBySlug, getAllMemorials } from "@/lib/data";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -226,6 +227,14 @@ export default async function MemorialPage({ params }: { params: { id: string } 
             <p className="text-sm text-mist-400">那些被定格的温暖瞬间</p>
           </div>
           <PhotoWall photos={memorial.photos} />
+        </div>
+
+        {/* Time Letter */}
+        <div className="mt-16">
+          <TimeLetterPanel
+            memorialSlug={memorial.id}
+            memorialName={memorial.name}
+          />
         </div>
 
         {/* Other Memorials */}
