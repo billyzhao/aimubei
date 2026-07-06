@@ -2,22 +2,27 @@
 
 export interface Memorial {
   id: string;
+  slug: string;
   name: string;
   title: string;
   birthYear: number;
   deathYear: number;
   avatar: string;
-  coverImage: string;
+  coverImage?: string;
   bio: string;
-  personality: string;
-  traits: string[];
-  quotes: string[];
-  timeline: TimelineEvent[];
-  photos: string[];
-  tributes: Tribute[];
+  personality?: string;
+  traits?: string[];
+  quotes?: string[];
+  timeline?: TimelineEvent[];
+  photos?: string[];
+  tributes?: Tribute[];
   visitorCount: number;
   tributeCount: number;
+  photoCount?: number;
+  isPublic: boolean;
+  visibility?: string;
   isVerified: boolean;
+  createdAt?: Date | string;
 }
 
 export interface TimelineEvent {

@@ -58,8 +58,8 @@ export default async function MemorialsPage({
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filtered.map((memorial) => (
                 <Link
-                  key={memorial.id}
-                  href={`/memorial/${memorial.id}`}
+                  key={memorial.slug}
+                  href={`/memorial/${memorial.slug}`}
                   className="glass-card overflow-hidden hover:glow-border transition-all duration-300 group"
                 >
                   {/* Cover */}
@@ -69,7 +69,7 @@ export default async function MemorialsPage({
                       <img src={memorial.avatar} alt={memorial.name} className="w-full h-full object-cover relative z-10 group-hover:scale-110 transition-transform duration-300" />
                     ) : (
                       <div className="text-6xl group-hover:scale-110 transition-transform duration-300 relative z-10">
-                        {getAvatarEmoji(memorial.title, memorial.traits)}
+                        {getAvatarEmoji(memorial.title, memorial.traits ?? [])}
                       </div>
                     )}
                     {memorial.isVerified && (
@@ -85,13 +85,13 @@ export default async function MemorialsPage({
                       {memorial.name}
                     </h3>
                     <p className="text-sm text-mist-400 mb-3">{memorial.title}</p>
-                    <p className="text-xs text-mist-400 leading-relaxed line-clamp-2 mb-4">
+                    <p className="text-xs text-mist-400 leading-relaxed overflow-hidden" style={{ maxHeight: "2.6em" }}>
                       {memorial.bio}
                     </p>
 
                     {/* Traits */}
                     <div className="flex flex-wrap gap-1.5 mb-4">
-                      {memorial.traits.slice(0, 3).map((trait: string) => (
+                      {(memorial.traits ?? []).slice(0, 3).map((trait: string) => (
                         <span
                           key={trait}
                           className="px-2 py-0.5 rounded-full bg-amethyst-500/10 text-xs text-amethyst-300 border border-amethyst-500/15"

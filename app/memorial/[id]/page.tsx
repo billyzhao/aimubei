@@ -12,8 +12,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import type { Memorial } from "@/lib/types";
 
-function getAvatarEmoji(memorial: { name: string; title: string; traits: string[] }): string {
-  const title = memorial.title + memorial.traits.join("");
+function getAvatarEmoji(memorial: { name: string; title: string; traits?: string[] }): string {
+  const title = memorial.title + (memorial.traits || []).join("");
   if (/教师|老师|教/.test(title)) return "📖";
   if (/医|药|诊/.test(title)) return "⚕️";
   if (/母|妈|奶奶|外婆/.test(title)) return "🥟";
@@ -99,7 +99,7 @@ export default async function MemorialPage({ params }: { params: { id: string } 
 
                 {/* Traits */}
                 <div className="flex flex-wrap gap-2 justify-center md:justify-start mb-4">
-                  {memorial.traits.map((trait: string) => (
+                  {(memorial.traits || []).map((trait: string) => (
                     <span
                       key={trait}
                       className="px-3 py-1 rounded-full bg-amethyst-500/10 text-xs text-amethyst-300 border border-amethyst-500/20"
@@ -132,12 +132,12 @@ export default async function MemorialPage({ params }: { params: { id: string } 
             </div>
 
             {/* Quote */}
-            {memorial.quotes.length > 0 && (
+            {(memorial.quotes || []).length > 0 && (
               <div className="mt-8 pt-8 border-t border-amethyst-500/10">
                 <div className="text-center">
                   <div className="text-3xl text-amethyst-500/30 mb-2 font-serif">"</div>
                   <p className="text-lg md:text-xl font-serif text-mist-200 italic">
-                    {memorial.quotes[0]}
+                    {(memorial.quotes || [])[0]}
                   </p>
                   <p className="text-sm text-mist-400 mt-2">— {memorial.name}</p>
                 </div>
@@ -162,26 +162,26 @@ export default async function MemorialPage({ params }: { params: { id: string } 
             <MemorialChat memorial={memorial} />
 
             {/* Personality Info */}
-            {memorial.personality && (
-              <div className="glass-card p-6 mt-6">
-                <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-                  <span>🧠</span> AI人格特征
-                </h3>
-                <p className="text-sm text-mist-400 leading-relaxed mb-4">
-                  {memorial.personality}
-                </p>
-                {memorial.quotes.length > 0 && (
-                  <div className="space-y-2">
-                    <div className="text-xs text-mist-400 mb-2">经典语录：</div>
-                    {memorial.quotes.map((quote: string, i: number) => (
-                      <div key={i} className="text-sm text-mist-300 italic border-l-2 border-amethyst-500/30 pl-3">
-                        "{quote}"
+                {memorial.personality && (
+                  <div className="glass-card p-6 mt-6">
+                    <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+                      <span>🧠</span> AI人格特征
+                    </h3>
+                    <p className="text-sm text-mist-400 leading-relaxed mb-4">
+                      {memorial.personality}
+                    </p>
+                    {(memorial.quotes || []).length > 0 && (
+                      <div className="space-y-2">
+                        <div className="text-xs text-mist-400 mb-2">经典语录：</div>
+                        {(memorial.quotes || []).map((quote: string, i: number) => (
+                          <div key={i} className="text-sm text-mist-300 italic border-l-2 border-amethyst-500/30 pl-3">
+                            "{quote}"
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    )}
                   </div>
                 )}
-              </div>
-            )}
           </div>
 
           {/* Right: Tribute Panel */}
@@ -194,9 +194,9 @@ export default async function MemorialPage({ params }: { params: { id: string } 
               <p className="text-sm text-mist-400 mt-1">献花、点烛、留言，表达你的思念</p>
             </div>
             <TributePanel
-              tributes={memorial.tributes}
+              tributes={memorial.tributes || []}
               memorialName={memorial.name}
-              memorialSlug={memorial.id}
+              memorialSlug={memorial.slug}
               tributeCount={memorial.tributeCount}
               visitorCount={memorial.visitorCount}
             />
@@ -204,7 +204,7 @@ export default async function MemorialPage({ params }: { params: { id: string } 
         </div>
 
         {/* Timeline Section */}
-        {memorial.timeline.length > 0 && (
+        {(memorial.timeline || []).length > 0 && (
           <div className="mt-16">
             <div className="mb-8 text-center">
               <h2 className="text-2xl md:text-3xl font-serif font-bold mb-2">
@@ -213,7 +213,7 @@ export default async function MemorialPage({ params }: { params: { id: string } 
               <p className="text-sm text-mist-400">{memorial.name}的一生，每一个重要时刻</p>
             </div>
             <div className="max-w-3xl mx-auto">
-              <Timeline events={memorial.timeline} name={memorial.name} />
+              <Timeline events={memorial.timeline ?? []} name={memorial.name} />
             </div>
           </div>
         )}
@@ -226,7 +226,7 @@ export default async function MemorialPage({ params }: { params: { id: string } 
             </h2>
             <p className="text-sm text-mist-400">那些被定格的温暖瞬间</p>
           </div>
-          <PhotoWall photos={memorial.photos} />
+          <PhotoWall photos={memorial.photos || []} />
         </div>
 
         {/* Time Letter */}

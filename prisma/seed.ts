@@ -128,9 +128,32 @@ async function main() {
   for (const m of memorials) {
     const { timeline, tributes, ...memorialData } = m;
 
+    // 先删除已有记录的关联数据（timeline + tributes），再 upsert
+    const existing = await prisma.memorial.findUnique({
+      where: { slug: m.slug },
+      select: { id: true },
+    });
+
+    if (existing) {
+      await prisma.timelineEvent.deleteMany({ where: { memorialId: existing.id } });
+      await prisma.tribute.deleteMany({ where: { memorialId: existing.id } });
+    }
+
     const memorial = await prisma.memorial.upsert({
       where: { slug: m.slug },
-      update: {},
+      update: {
+        name: memorialData.name,
+        title: memorialData.title,
+        bio: memorialData.bio,
+        personality: memorialData.personality,
+        traits: JSON.stringify(m.traits),
+        quotes: JSON.stringify(m.quotes),
+        birthYear: memorialData.birthYear,
+        deathYear: memorialData.deathYear,
+        isVerified: memorialData.isVerified,
+        visitorCount: memorialData.visitorCount,
+        tributeCount: memorialData.tributeCount,
+      },
       create: {
         ...memorialData,
         ownerId: demoUser.id,
@@ -139,7 +162,7 @@ async function main() {
       },
     });
 
-    // 导入时间线
+    // 重新导入时间线
     for (let i = 0; i < timeline.length; i++) {
       await prisma.timelineEvent.create({
         data: {
@@ -150,7 +173,7 @@ async function main() {
       });
     }
 
-    // 导入祭奠
+    // 重新导入祭奠
     for (const t of tributes) {
       await prisma.tribute.create({
         data: {

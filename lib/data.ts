@@ -163,6 +163,48 @@ export async function createMemorial(data: {
 }
 
 // ====================================
+// 首页精选纪念馆
+// ====================================
+
+export async function getFeaturedMemorials(limit = 6): Promise<Memorial[]> {
+  const memorials = await prisma.memorial.findMany({
+    where: { visibility: "PUBLIC" },
+    orderBy: [
+      { tributeCount: "desc" },
+      { visitorCount: "desc" },
+    ],
+    take: limit,
+    include: {
+      _count: { select: { tributes: true, photos: true } },
+    },
+  });
+
+  return memorials.map((m) => ({
+    id: m.slug,
+    slug: m.slug,
+    name: m.name,
+    title: m.title,
+    bio: m.bio,
+    birthYear: m.birthYear,
+    deathYear: m.deathYear,
+    avatar: m.avatar || "",
+    visitorCount: m.visitorCount,
+    tributeCount: m._count.tributes,
+    photoCount: m._count.photos,
+    isPublic: m.isPublic,
+    visibility: m.visibility,
+    isVerified: m.isVerified,
+    createdAt: m.createdAt,
+  }));
+}
+
+export async function getPublicMemorialCount(): Promise<number> {
+  return prisma.memorial.count({
+    where: { visibility: "PUBLIC" },
+  });
+}
+
+// ====================================
 // 祭奠互动
 // ====================================
 
@@ -221,6 +263,7 @@ export async function saveChatMessage(data: {
 function transformMemorial(m: any): Memorial {
   return {
     id: m.slug, // 前端用 slug 作为标识
+    slug: m.slug,
     name: m.name,
     title: m.title,
     birthYear: m.birthYear,
@@ -247,6 +290,8 @@ function transformMemorial(m: any): Memorial {
     })),
     visitorCount: m.visitorCount,
     tributeCount: m.tributeCount ?? m._count?.tributes ?? 0,
+    isPublic: m.visibility === "PUBLIC",
+    visibility: m.visibility || "PUBLIC",
     isVerified: m.isVerified,
   };
 }
