@@ -106,6 +106,8 @@ model Memorial {
   chatMessages  ChatMessage[]
   inviteCodes   InviteCode[]
   letters       TimeLetter[]
+  summaries     ConversationSummary[]
+  keyMemories   KeyMemory[]
 }
 
 model TimelineEvent {
@@ -159,6 +161,36 @@ model ChatMessage {
 
   memorial Memorial @relation(fields: [memorialId], references: [id], onDelete: Cascade)
   user     User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([memorialId])
+}
+
+// ====================================
+// AI 记忆系统
+// ====================================
+
+// 对话摘要（每 10 轮自动生成）
+model ConversationSummary {
+  id          String   @id @default(cuid())
+  memorialId  String
+  content     String   // 摘要内容
+  messageRange String  // "msg_1~msg_20" 标记覆盖范围
+  createdAt   DateTime @default(now())
+
+  memorial Memorial @relation(fields: [memorialId], references: [id], onDelete: Cascade)
+
+  @@index([memorialId])
+}
+
+// 关键记忆（AI 提取的来访者信息）
+model KeyMemory {
+  id          String   @id @default(cuid())
+  memorialId  String
+  category    String   // visitor_name | occupation | relationship | emotion | other
+  content     String   // "来访者叫小明" / "来访者是程序员" / "来访者是孙辈"
+  createdAt   DateTime @default(now())
+
+  memorial Memorial @relation(fields: [memorialId], references: [id], onDelete: Cascade)
 
   @@index([memorialId])
 }

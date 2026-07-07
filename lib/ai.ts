@@ -1,14 +1,22 @@
 /**
- * AI 引擎 — 人格化对话
+ * AI 引擎 — 人格化对话 + 记忆系统
  *
  * 支持 DeepSeek API（需配置 DEEPSEEK_API_KEY）
  * 无 API Key 时降级为增强版规则回复
+ *
+ * 记忆系统（B+C 方案）：
+ * - B. 摘要式记忆：每 10 轮对话自动总结，注入 System Prompt
+ * - C. 关键信息提取：AI 提取来访者姓名/职业/关系等关键事实
  */
 
 import { prisma } from "./db";
 
 const DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions";
 export const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || "";
+
+// 记忆系统触发阈值
+const SUMMARY_THRESHOLD = 20; // 每 20 条消息（10 轮对话）生成一次摘要
+const MAX_CONTEXT_MESSAGES = 40; // 上下文保留最近 40 条消息（20 轮）
 
 // ====================================
 // 人格 Prompt 构建
@@ -66,6 +74,57 @@ ${memorial.quotes.map((q) => `- "${q}"`).join("\n")}
 }
 
 // ====================================
+// 记忆系统：构建记忆上下文
+// ====================================
+
+async function buildMemoryContext(memorialId: string): Promise<string> {
+  const [summaries, keyMemories] = await Promise.all([
+    prisma.conversationSummary.findMany({
+      where: { memorialId },
+      orderBy: { createdAt: "desc" },
+      take: 3, // 最近 3 条摘要
+    }),
+    prisma.keyMemory.findMany({
+      where: { memorialId },
+      orderBy: { createdAt: "desc" },
+      take: 10, // 最近 10 条关键记忆
+    }),
+  ]);
+
+  let memoryText = "";
+
+  // 注入关键记忆
+  if (keyMemories.length > 0) {
+    const memoryItems = keyMemories.map((m) => {
+      const labelMap: Record<string, string> = {
+        visitor_name: "来访者姓名",
+        occupation: "职业",
+        relationship: "关系",
+        emotion: "情感状态",
+        other: "其他",
+      };
+      const label = labelMap[m.category] || m.category;
+      return `- ${label}：${m.content}`;
+    });
+    memoryText += `## 你记得关于来访者的事
+${memoryItems.join("\n")}
+
+`;
+  }
+
+  // 注入对话摘要
+  if (summaries.length > 0) {
+    const summaryTexts = summaries.reverse().map((s) => s.content);
+    memoryText += `## 之前对话的回忆
+${summaryTexts.join("\n---\n")}
+
+`;
+  }
+
+  return memoryText;
+}
+
+// ====================================
 // 对话上下文构建
 // ====================================
 
@@ -76,14 +135,18 @@ export async function buildChatContext(memorialId: string, currentMessage: strin
 
   if (!memorial) return null;
 
-  // 获取最近10条对话作为上下文
+  // 获取最近 MAX_CONTEXT_MESSAGES 条对话作为上下文
   const history = await prisma.chatMessage.findMany({
     where: { memorialId },
     orderBy: { createdAt: "desc" },
-    take: 10,
+    take: MAX_CONTEXT_MESSAGES,
   });
 
-  const systemPrompt = buildSystemPrompt({
+  // 获取记忆上下文（摘要 + 关键信息）
+  const memoryContext = await buildMemoryContext(memorialId);
+
+  // 构建系统 Prompt（人格 + 记忆）
+  const baseSystemPrompt = buildSystemPrompt({
     name: memorial.name,
     title: memorial.title,
     bio: memorial.bio,
@@ -94,10 +157,15 @@ export async function buildChatContext(memorialId: string, currentMessage: strin
     deathYear: memorial.deathYear,
   });
 
-  // 构建消息数组（历史消息 + 当前消息）
+  // 将记忆注入系统 Prompt
+  const systemPrompt = memoryContext
+    ? baseSystemPrompt + "\n\n" + memoryContext
+    : baseSystemPrompt;
+
+  // 构建消息数组
   const messages = [{ role: "system", content: systemPrompt }];
 
-  // 反转历史消息（从旧到新），排除当前消息
+  // 反转历史消息（从旧到新）
   const reversedHistory = history.reverse();
   for (const msg of reversedHistory) {
     messages.push({
@@ -166,6 +234,147 @@ export async function callDeepSeekStream(
   }
 
   return response.body;
+}
+
+// ====================================
+// 记忆系统：对话摘要生成（方案 B）
+// ====================================
+
+export async function generateConversationSummary(
+  memorialId: string
+): Promise<void> {
+  // 获取总消息数
+  const totalMessages = await prisma.chatMessage.count({
+    where: { memorialId },
+  });
+
+  // 获取已有的摘要数量
+  const existingSummaries = await prisma.conversationSummary.count({
+    where: { memorialId },
+  });
+
+  // 计算需要覆盖的消息范围
+  const expectedSummaries = Math.floor(totalMessages / SUMMARY_THRESHOLD);
+
+  // 如果已有足够的摘要，跳过
+  if (existingSummaries >= expectedSummaries) return;
+
+  // 计算这次需要摘要的消息范围
+  const startIndex = existingSummaries * SUMMARY_THRESHOLD;
+  const messagesToSummarize = await prisma.chatMessage.findMany({
+    where: { memorialId },
+    orderBy: { createdAt: "asc" },
+    skip: startIndex,
+    take: SUMMARY_THRESHOLD,
+  });
+
+  if (messagesToSummarize.length < SUMMARY_THRESHOLD) return;
+
+  // 调用 DeepSeek 生成摘要
+  const conversationText = messagesToSummarize
+    .map((m) => `${m.role === "user" ? "来访者" : "我"}：${m.content}`)
+    .join("\n");
+
+  const summaryPrompt = `请将以下对话总结为简洁的回忆要点（100字以内），用第一人称（已故者的视角）描述：
+- 来访者说了什么
+- 讨论了什么话题
+- 来访者的情绪状态
+
+对话内容：
+${conversationText}
+
+请直接输出摘要，不要加前缀：`;
+
+  try {
+    const summary = await callDeepSeek([
+      { role: "user", content: summaryPrompt },
+    ]);
+
+    await prisma.conversationSummary.create({
+      data: {
+        memorialId,
+        content: summary,
+        messageRange: `msg_${startIndex + 1}~msg_${startIndex + SUMMARY_THRESHOLD}`,
+      },
+    });
+
+    console.log(`[AI Memory] 摘要已生成: memorialId=${memorialId}, range=msg_${startIndex + 1}~msg_${startIndex + SUMMARY_THRESHOLD}`);
+  } catch (error) {
+    console.error("[AI Memory] 摘要生成失败:", error);
+  }
+}
+
+// ====================================
+// 记忆系统：关键信息提取（方案 C）
+// ====================================
+
+export async function extractKeyMemories(
+  memorialId: string,
+  userMessage: string,
+  aiReply: string
+): Promise<void> {
+  // 只在有 API Key 时执行
+  if (!DEEPSEEK_API_KEY) return;
+
+  // 获取已有的关键记忆
+  const existingMemories = await prisma.keyMemory.findMany({
+    where: { memorialId },
+    select: { content: true, category: true },
+  });
+
+  const existingText = existingMemories.map((m) => `${m.category}: ${m.content}`).join("; ");
+
+  const extractPrompt = `分析以下对话，提取关于"来访者"的关键信息。
+
+已有记忆：${existingText || "无"}
+
+最新对话：
+来访者说：${userMessage}
+你回复：${aiReply}
+
+请提取新的关键信息，格式为 JSON 数组，每项包含 category 和 content：
+- category: visitor_name（来访者姓名）| occupation（职业）| relationship（与已故者的关系）| emotion（情感状态）| other（其他重要信息）
+- content: 具体内容
+
+规则：
+1. 只提取明确提及的信息，不要猜测
+2. 如果与已有记忆重复或无新信息，返回空数组 []
+3. 姓名只在首次出现时提取
+
+直接输出 JSON 数组，不要加 markdown 代码块：`;
+
+  try {
+    const result = await callDeepSeek([
+      { role: "user", content: extractPrompt },
+    ]);
+
+    // 解析 JSON
+    const jsonStr = result.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+    const memories = JSON.parse(jsonStr);
+
+    if (Array.isArray(memories) && memories.length > 0) {
+      for (const mem of memories) {
+        if (mem.category && mem.content) {
+          // 检查是否已存在相同内容
+          const exists = existingMemories.some(
+            (m) => m.content === mem.content && m.category === mem.category
+          );
+          if (!exists) {
+            await prisma.keyMemory.create({
+              data: {
+                memorialId,
+                category: mem.category,
+                content: mem.content,
+              },
+            });
+            console.log(`[AI Memory] 关键信息已提取: ${mem.category}=${mem.content}`);
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.error("[AI Memory] 关键信息提取失败:", error);
+  }
 }
 
 // ====================================
