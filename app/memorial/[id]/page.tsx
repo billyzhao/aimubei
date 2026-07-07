@@ -28,6 +28,8 @@ function getAvatarEmoji(memorial: { name: string; title: string; traits?: string
   return "🌿";
 }
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://evermind.cn";
+
 export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
   const memorial = await getMemorialBySlug(params.id);
 
@@ -42,22 +44,33 @@ export async function generateMetadata({ params }: { params: { id: string } }): 
     ? memorial.bio.substring(0, 160)
     : `缅怀 ${memorial.name}，在永念 EverMind 数字纪念空间中，让思念可以对话。`;
 
+  // og:image 回退链：头像 → 首张照片 → 默认品牌图
+  const ogImage =
+    memorial.avatar ||
+    (memorial.photos && memorial.photos.length > 0 ? memorial.photos[0] : "") ||
+    "/og-default.png";
+
   return {
     title,
     description,
     keywords: [memorial.name, memorial.title, "纪念馆", "数字纪念", "AI纪念", "永念", "EverMind"],
+    metadataBase: new URL(SITE_URL),
+    alternates: {
+      canonical: `/memorial/${memorial.slug}`,
+    },
     openGraph: {
       title,
       description,
       type: "profile",
-      images: memorial.avatar ? [{ url: memorial.avatar, alt: memorial.name }] : [],
+      url: `/memorial/${memorial.slug}`,
+      images: [{ url: ogImage, alt: `${memorial.name} 纪念馆`, width: 1200, height: 630 }],
       siteName: "永念 EverMind",
     },
     twitter: {
       card: "summary_large_image",
       title,
       description,
-      images: memorial.avatar ? [memorial.avatar] : [],
+      images: [ogImage],
     },
   };
 }
