@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { Tribute } from "@/lib/types";
 
 interface TributePanelProps {
@@ -16,10 +16,28 @@ export default function TributePanel({ tributes, memorialName, memorialSlug, tri
   const [message, setMessage] = useState("");
   const [localTributes, setLocalTributes] = useState(tributes);
   const [submitting, setSubmitting] = useState(false);
+  const [petals, setPetals] = useState<number[]>([]);
+  const [candleLit, setCandleLit] = useState(false);
 
   const filteredTributes = activeTab === "all" ? localTributes : localTributes.filter((t) => t.type === activeTab);
 
+  // 花瓣飘落效果
+  const triggerPetals = () => {
+    const newPetals = Array.from({ length: 12 }, (_, i) => Date.now() + i);
+    setPetals((prev) => [...prev, ...newPetals]);
+    setTimeout(() => {
+      setPetals((prev) => prev.filter((p) => !newPetals.includes(p)));
+    }, 4000);
+  };
+
   const handleTribute = async (type: "flower" | "candle") => {
+    if (type === "flower") {
+      triggerPetals();
+    }
+    if (type === "candle") {
+      setCandleLit(true);
+    }
+
     setSubmitting(true);
     try {
       const res = await fetch("/api/tributes", {
@@ -33,7 +51,6 @@ export default function TributePanel({ tributes, memorialName, memorialSlug, tri
       const data = await res.json();
       setLocalTributes((prev) => [data, ...prev]);
     } catch {
-      // 失败时仍然显示（乐观更新）
       const newTribute: Tribute = {
         id: `t${Date.now()}`,
         type,
@@ -87,6 +104,19 @@ export default function TributePanel({ tributes, memorialName, memorialSlug, tri
 
   return (
     <div className="space-y-6">
+      {/* 花瓣飘落层 */}
+      {petals.map((id) => (
+        <div
+          key={id}
+          className="petal-fall"
+          style={{
+            left: `${Math.random() * 100}%`,
+            animationDuration: `${3 + Math.random() * 2}s`,
+            animationDelay: `${Math.random() * 0.5}s`,
+          }}
+        />
+      ))}
+
       {/* Action Buttons */}
       <div className="grid grid-cols-2 gap-4">
         <button
@@ -94,16 +124,18 @@ export default function TributePanel({ tributes, memorialName, memorialSlug, tri
           disabled={submitting}
           className="glass-card p-6 text-center group hover:glow-border transition-all duration-300 disabled:opacity-50"
         >
-          <div className="text-4xl mb-2 group-hover:scale-125 transition-transform duration-300">🌸</div>
+          <div className="text-4xl mb-2 group-hover:scale-125 group-active:scale-95 transition-transform duration-300">🌸</div>
           <div className="text-sm text-mist-300 font-medium">献花</div>
           <div className="text-xs text-mist-400 mt-1">表达思念</div>
         </button>
         <button
           onClick={() => handleTribute("candle")}
           disabled={submitting}
-          className="glass-card p-6 text-center group hover:glow-border transition-all duration-300 disabled:opacity-50"
+          className={`glass-card p-6 text-center group hover:glow-border transition-all duration-300 disabled:opacity-50 ${candleLit ? "candle-glow" : ""}`}
         >
-          <div className="text-4xl mb-2 group-hover:scale-125 transition-transform duration-300 animate-flicker">🕯️</div>
+          <div className="text-4xl mb-2 group-hover:scale-125 group-active:scale-95 transition-transform duration-300">
+            <span className={candleLit ? "candle-flame inline-block" : "inline-block"}>🕯️</span>
+          </div>
           <div className="text-sm text-mist-300 font-medium">点烛</div>
           <div className="text-xs text-mist-400 mt-1">照亮归途</div>
         </button>

@@ -101,6 +101,76 @@ body {
     background-size: 200% 200%;
     background-repeat: repeat;
   }
+
+  /* ===== Iter 6: 动画效果 ===== */
+
+  /* 花瓣飘落 */
+  .petal-fall {
+    position: fixed;
+    top: -20px;
+    width: 12px;
+    height: 12px;
+    background: radial-gradient(ellipse at center, #f9a8d4 0%, #ec4899 60%, transparent 100%);
+    border-radius: 50% 0 50% 0;
+    pointer-events: none;
+    z-index: 9999;
+    animation: petal-fall-anim linear forwards;
+  }
+
+  @keyframes petal-fall-anim {
+    0% {
+      transform: translateY(0) rotate(0deg) scale(1);
+      opacity: 0.8;
+    }
+    50% {
+      opacity: 0.7;
+    }
+    100% {
+      transform: translateY(100vh) rotate(720deg) translateX(80px) scale(0.5);
+      opacity: 0;
+    }
+  }
+
+  /* 烛光摇曳 */
+  .candle-flame {
+    animation: candle-flicker 2s ease-in-out infinite;
+    transform-origin: bottom center;
+  }
+
+  @keyframes candle-flicker {
+    0%, 100% { transform: scale(1) rotate(-2deg); filter: drop-shadow(0 0 8px rgba(251, 191, 36, 0.6)); }
+    25% { transform: scale(1.05) rotate(1deg); filter: drop-shadow(0 0 12px rgba(251, 191, 36, 0.8)); }
+    50% { transform: scale(0.95) rotate(-1deg); filter: drop-shadow(0 0 6px rgba(251, 191, 36, 0.5)); }
+    75% { transform: scale(1.02) rotate(2deg); filter: drop-shadow(0 0 10px rgba(251, 191, 36, 0.7)); }
+  }
+
+  /* 烛光光晕 */
+  .candle-glow {
+    animation: candle-glow-pulse 3s ease-in-out infinite;
+  }
+
+  @keyframes candle-glow-pulse {
+    0%, 100% { box-shadow: 0 0 20px rgba(251, 191, 36, 0.2), 0 0 40px rgba(251, 191, 36, 0.1); }
+    50% { box-shadow: 0 0 30px rgba(251, 191, 36, 0.35), 0 0 60px rgba(251, 191, 36, 0.15); }
+  }
+
+  /* 时间线节点发光 */
+  .timeline-node-glow {
+    animation: node-pulse 3s ease-in-out infinite;
+  }
+
+  @keyframes node-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.3); }
+    50% { box-shadow: 0 0 0 8px rgba(139, 92, 246, 0); }
+  }
+
+  /* 时间线节点图标悬浮 */
+  .timeline-icon-hover {
+    transition: transform 0.3s ease;
+  }
+  .timeline-icon-hover:hover {
+    transform: scale(1.15) rotate(5deg);
+  }
 }
 
 @layer utilities {
