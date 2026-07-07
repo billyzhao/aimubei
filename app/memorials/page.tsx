@@ -1,8 +1,20 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { getAllMemorials } from "@/lib/data";
 import MemorialSearch from "@/components/MemorialSearch";
+
+export const metadata: Metadata = {
+  title: "纪念馆列表 — 永念 EverMind",
+  description: "浏览所有公开纪念馆，每一个名字背后都是一段值得铭记的故事。献花、点烛、与AI对话。",
+  keywords: ["纪念馆", "数字纪念", "在线祭奠", "AI对话", "永念", "EverMind"],
+  openGraph: {
+    title: "纪念馆列表 — 永念 EverMind",
+    description: "浏览所有公开纪念馆，每一个名字背后都是一段值得铭记的故事。",
+    siteName: "永念 EverMind",
+  },
+};
 
 function getAvatarEmoji(title: string, traits: string[]): string {
   const text = title + traits.join("");

@@ -117,6 +117,7 @@ export default function Navbar() {
             <>
               <div className="border-t border-amethyst-500/10 my-2 pt-2" />
               <MobileNavLink href="/dashboard" label="我的纪念馆" onClick={() => setIsOpen(false)} />
+              <MobileNavLink href="/settings" label="账户设置" onClick={() => setIsOpen(false)} />
               <button
                 onClick={() => {
                   setIsOpen(false);
@@ -220,6 +221,13 @@ function UserMenu({
               onClick={() => setOpen(false)}
             >
               我的纪念馆
+            </Link>
+            <Link
+              href="/settings"
+              className="block px-4 py-3 text-sm text-mist-200 hover:bg-midnight-700/50 transition-colors"
+              onClick={() => setOpen(false)}
+            >
+              账户设置
             </Link>
             <button
               onClick={() => {

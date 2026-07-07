@@ -170,8 +170,10 @@ export default async function DashboardPage() {
                   <div className="text-mist-200">—</div>
                 </div>
               </div>
-              <div className="mt-6 pt-6 border-t border-amethyst-500/10 text-xs text-mist-400">
-                💡 账户设置功能将在后续迭代完善
+              <div className="mt-6 pt-6 border-t border-amethyst-500/10">
+                <Link href="/settings" className="btn-secondary text-sm inline-block">
+                  ⚙️ 账户设置
+                </Link>
               </div>
             </div>
           </div>

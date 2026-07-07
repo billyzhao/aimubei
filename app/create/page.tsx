@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import TimelineBuilder, { type TimelineEventInput } from "@/components/TimelineBuilder";
 
 export default function CreatePage() {
   const router = useRouter();
@@ -13,6 +14,16 @@ export default function CreatePage() {
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [uploadProgress, setUploadProgress] = useState("");
+
+  // 照片本地预览
+  const [photoFiles, setPhotoFiles] = useState<File[]>([]);
+  const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
+  const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 时间线
+  const [timelineEvents, setTimelineEvents] = useState<TimelineEventInput[]>([]);
 
   // 未登录时重定向到登录页
   useEffect(() => {
@@ -74,11 +85,35 @@ export default function CreatePage() {
     }
   };
 
+  // 照片处理
+  const handlePhotoSelect = (files: FileList | File[]) => {
+    const fileArray = Array.from(files).filter((f) =>
+      ["image/jpeg", "image/png", "image/webp", "image/gif"].includes(f.type)
+    );
+
+    const valid = fileArray.filter((f) => f.size <= 10 * 1024 * 1024);
+    if (valid.length < fileArray.length) {
+      setError("部分照片超过10MB已被过滤");
+    }
+
+    const newPreviews = valid.map((f) => URL.createObjectURL(f));
+    setPhotoFiles((prev) => [...prev, ...valid]);
+    setPhotoPreviews((prev) => [...prev, ...newPreviews]);
+  };
+
+  const removePhoto = (index: number) => {
+    URL.revokeObjectURL(photoPreviews[index]);
+    setPhotoFiles((prev) => prev.filter((_, i) => i !== index));
+    setPhotoPreviews((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const handleSubmit = async () => {
     setSubmitting(true);
     setError("");
+    setUploadProgress("");
 
     try {
+      // 1. 创建纪念馆
       const res = await fetch("/api/memorials/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -91,7 +126,7 @@ export default function CreatePage() {
           quotes: formData.quotes,
           birthYear: parseInt(formData.birthYear),
           deathYear: parseInt(formData.deathYear),
-          timeline: [],
+          timeline: timelineEvents,
         }),
       });
 
@@ -106,6 +141,26 @@ export default function CreatePage() {
         setError(data.error || "创建失败");
         setSubmitting(false);
         return;
+      }
+
+      // 2. 上传照片（纪念馆创建后拿到slug）
+      if (photoFiles.length > 0) {
+        setUploadProgress("正在上传照片...");
+        for (let i = 0; i < photoFiles.length; i++) {
+          const fileFormData = new FormData();
+          fileFormData.append("file", photoFiles[i]);
+          fileFormData.append("memorialSlug", data.slug);
+
+          try {
+            await fetch("/api/upload", {
+              method: "POST",
+              body: fileFormData,
+            });
+            setUploadProgress(`上传照片 ${i + 1}/${photoFiles.length}...`);
+          } catch {
+            // 照片上传失败不阻塞流程
+          }
+        }
       }
 
       router.push(`/memorial/${data.slug}`);
@@ -244,7 +299,7 @@ export default function CreatePage() {
               </div>
             )}
 
-            {/* Step 2: Bio */}
+            {/* Step 2: Bio + Timeline */}
             {step === 2 && (
               <div className="space-y-5 animate-fade-in">
                 <h2 className="text-xl font-semibold text-white mb-4">生平故事</h2>
@@ -260,6 +315,15 @@ export default function CreatePage() {
                     className="w-full bg-midnight-700/60 text-mist-200 placeholder-mist-400/50 rounded-xl px-4 py-3 text-sm border border-amethyst-500/15 focus:outline-none focus:border-amethyst-500/40 transition-colors resize-none"
                   />
                   <div className="text-right text-xs text-mist-400 mt-1">{formData.bio.length} 字</div>
+                </div>
+
+                {/* Timeline Builder */}
+                <div>
+                  <label className="text-sm text-mist-300 mb-3 block">生平时间线（可选）</label>
+                  <TimelineBuilder
+                    events={timelineEvents}
+                    onEventsChange={setTimelineEvents}
+                  />
                 </div>
 
                 <div>
@@ -363,20 +427,81 @@ export default function CreatePage() {
             {step === 4 && (
               <div className="space-y-5 animate-fade-in">
                 <h2 className="text-xl font-semibold text-white mb-4">照片资料</h2>
-                <p className="text-sm text-mist-400">上传逝者的照片，用于纪念馆展示</p>
+                <p className="text-sm text-mist-400">上传逝者的照片，第一张将自动设为纪念馆头像</p>
 
-                <div className="border-2 border-dashed border-amethyst-500/20 rounded-2xl p-12 text-center hover:border-amethyst-500/40 transition-colors cursor-pointer">
-                  <div className="text-5xl mb-4">📸</div>
-                  <p className="text-sm text-mist-300 font-medium mb-1">点击或拖拽上传照片</p>
-                  <p className="text-xs text-mist-400">支持 JPG、PNG 格式，单张不超过 10MB</p>
+                {error && (
+                  <div className="px-4 py-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-300 text-sm">
+                    {error}
+                  </div>
+                )}
+
+                {/* Upload Area */}
+                <div
+                  onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                  onDragLeave={() => setDragOver(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setDragOver(false);
+                    if (e.dataTransfer.files.length > 0) handlePhotoSelect(e.dataTransfer.files);
+                  }}
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all duration-300 ${
+                    dragOver
+                      ? "border-amethyst-500/60 bg-amethyst-500/10 scale-[1.02]"
+                      : "border-amethyst-500/20 hover:border-amethyst-500/40 hover:bg-amethyst-500/5"
+                  }`}
+                >
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => {
+                      if (e.target.files) handlePhotoSelect(e.target.files);
+                      e.target.value = "";
+                    }}
+                  />
+                  <div className="text-5xl mb-3">📸</div>
+                  <p className="text-sm text-mist-200 font-medium mb-1">点击或拖拽上传照片</p>
+                  <p className="text-xs text-mist-400">支持 JPG、PNG、WebP、GIF，单张不超过 10MB</p>
+                  <p className="text-xs text-mist-400 mt-1">已选择 {photoFiles.length} 张</p>
                 </div>
+
+                {/* Photo Preview Grid */}
+                {photoPreviews.length > 0 && (
+                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
+                    {photoPreviews.map((url, index) => (
+                      <div
+                        key={index}
+                        className="group relative aspect-square rounded-xl overflow-hidden bg-midnight-800 border border-amethyst-500/15"
+                      >
+                        <img src={url} alt={`预览 ${index + 1}`} className="w-full h-full object-cover" />
+                        {index === 0 && (
+                          <div className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-gold-500/20 text-xs text-gold-300 border border-gold-500/30">
+                            头像
+                          </div>
+                        )}
+                        <button
+                          onClick={(e) => { e.stopPropagation(); removePhoto(index); }}
+                          className="absolute top-1 right-1 w-6 h-6 rounded-full bg-rose-500/80 text-white flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 <div className="glass-card p-4 bg-amethyst-500/5">
                   <div className="flex gap-3">
                     <span className="text-xl">💡</span>
-                    <p className="text-xs text-mist-400 leading-relaxed">
-                      照片上传功能将在下一迭代开放。当前可先跳过此步骤。
-                    </p>
+                    <div>
+                      <p className="text-sm text-mist-300 font-medium mb-1">照片说明</p>
+                      <p className="text-xs text-mist-400 leading-relaxed">
+                        照片将在纪念馆创建后自动上传。第一张照片会设为纪念馆头像，后续可在编辑页面管理照片。
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -497,7 +622,7 @@ export default function CreatePage() {
                   disabled={submitting}
                   className="btn-gold text-sm disabled:opacity-50"
                 >
-                  {submitting ? "创建中..." : "✨ 创建纪念馆"}
+                  {submitting ? (uploadProgress || "创建中...") : "✨ 创建纪念馆"}
                 </button>
               )}
             </div>

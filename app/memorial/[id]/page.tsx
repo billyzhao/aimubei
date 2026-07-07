@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import type { Metadata } from "next";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import MemorialChat from "@/components/MemorialChat";
@@ -10,6 +11,7 @@ import TimeLetterPanel from "@/components/TimeLetterPanel";
 import AnimatedSection from "@/components/AnimatedSection";
 import ParticleBackground from "@/components/ParticleBackground";
 import VisitorStats from "@/components/VisitorStats";
+import ShareButton from "@/components/ShareButton";
 import { getMemorialBySlug, getAllMemorials } from "@/lib/data";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -24,6 +26,40 @@ function getAvatarEmoji(memorial: { name: string; title: string; traits?: string
   if (/军|兵|战/.test(title)) return "🎖️";
   if (/艺|画|音|琴/.test(title)) return "🎨";
   return "🌿";
+}
+
+export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
+  const memorial = await getMemorialBySlug(params.id);
+
+  if (!memorial) {
+    return {
+      title: "纪念馆未找到 — 永念 EverMind",
+    };
+  }
+
+  const title = `${memorial.name} — ${memorial.title}`;
+  const description = memorial.bio
+    ? memorial.bio.substring(0, 160)
+    : `缅怀 ${memorial.name}，在永念 EverMind 数字纪念空间中，让思念可以对话。`;
+
+  return {
+    title,
+    description,
+    keywords: [memorial.name, memorial.title, "纪念馆", "数字纪念", "AI纪念", "永念", "EverMind"],
+    openGraph: {
+      title,
+      description,
+      type: "profile",
+      images: memorial.avatar ? [{ url: memorial.avatar, alt: memorial.name }] : [],
+      siteName: "永念 EverMind",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: memorial.avatar ? [memorial.avatar] : [],
+    },
+  };
 }
 
 export default async function MemorialPage({ params }: { params: { id: string } }) {
@@ -67,10 +103,6 @@ export default async function MemorialPage({ params }: { params: { id: string } 
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-amethyst-600/10 rounded-full blur-[100px]" />
 
         <div className="relative z-10 max-w-6xl mx-auto px-6 py-12">
-          <Link href="/memorials" className="text-mist-400 hover:text-amethyst-400 text-sm mb-6 inline-flex items-center gap-1 transition-colors">
-            ← 返回纪念馆列表
-          </Link>
-
           {isOwner && (
             <Link
               href={`/edit/${memorial.id}`}
@@ -79,6 +111,21 @@ export default async function MemorialPage({ params }: { params: { id: string } 
               ✏️ 编辑纪念馆
             </Link>
           )}
+
+          <div className="flex items-center gap-2 mb-6">
+            <Link href="/memorials" className="text-mist-400 hover:text-amethyst-400 text-sm inline-flex items-center gap-1 transition-colors">
+              ← 返回纪念馆列表
+            </Link>
+            <div className="ml-auto flex items-center gap-2">
+              <ShareButton
+                slug={memorial.slug || ""}
+                name={memorial.name}
+                title={memorial.title}
+                bio={memorial.bio}
+                avatar={memorial.avatar}
+              />
+            </div>
+          </div>
 
           {/* Memorial Card */}
           <AnimatedSection>
