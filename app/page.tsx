@@ -3,6 +3,9 @@ import Footer from "@/components/Footer";
 import Link from "next/link";
 import { getFeaturedMemorials, getPublicMemorialCount } from "@/lib/data";
 
+// 首页依赖数据库，禁止构建期静态预渲染（DB 由容器 entrypoint 在运行时初始化）
+export const dynamic = "force-dynamic";
+
 // 头像 emoji 映射
 function getAvatarEmoji(title: string, traits: string[]): string {
   const text = title + traits.join("");

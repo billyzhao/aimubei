@@ -86,6 +86,7 @@ export default function EditMemorialClient({
 
   // Permissions state
   const [visibility, setVisibility] = useState(memorial.visibility);
+  const [accessPassword, setAccessPassword] = useState("");
   const [inviteCodes, setInviteCodes] = useState<InviteCodeItem[]>(memorial.inviteCodes);
   const [generating, setGenerating] = useState(false);
 
@@ -221,14 +222,22 @@ export default function EditMemorialClient({
   const handleVisibilityChange = async (v: string) => {
     setVisibility(v);
     try {
+      const body: { visibility: string; accessPassword?: string } = { visibility: v };
+      if (v === "PRIVATE" && accessPassword) {
+        body.accessPassword = accessPassword;
+      }
       const res = await fetch(`/api/memorials/${memorial.slug}/visibility`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ visibility: v }),
+        body: JSON.stringify(body),
       });
       if (res.ok) {
+        setAccessPassword("");
         setMessage("✓ 权限已更新");
         setTimeout(() => setMessage(""), 3000);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setMessage(data.error || "设置失败");
       }
     } catch {
       setMessage("设置失败");
@@ -602,6 +611,32 @@ export default function EditMemorialClient({
                 ))}
               </div>
             </div>
+
+            {/* Access Password for PRIVATE */}
+            {visibility === "PRIVATE" && (
+              <div className="glass-card p-6">
+                <h3 className="text-lg font-semibold text-white mb-3">访问密码</h3>
+                <p className="text-xs text-mist-400 mb-3 leading-relaxed">
+                  设置后，知道密码的人也能访问这座私密纪念馆。留空则仅你自己可见。
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    type="password"
+                    value={accessPassword}
+                    onChange={(e) => setAccessPassword(e.target.value)}
+                    placeholder="输入访问密码（至少4位）"
+                    className="flex-1 bg-midnight-700/60 text-mist-200 placeholder-mist-400/50 rounded-xl px-4 py-2.5 text-sm border border-amethyst-500/15 focus:outline-none focus:border-amethyst-500/40 transition-colors"
+                  />
+                  <button
+                    onClick={() => handleVisibilityChange("PRIVATE")}
+                    disabled={!accessPassword || accessPassword.length < 4}
+                    className="btn-secondary text-sm disabled:opacity-40"
+                  >
+                    保存密码
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Invite Codes */}
             {visibility === "FAMILY" && (

@@ -91,6 +91,8 @@ model Memorial {
   // 权限：PUBLIC(公开) | FAMILY(亲友) | PRIVATE(私密)
   visibility    String          @default("PUBLIC")
   isPublic      Boolean         @default(true) // 旧字段保留兼容，与visibility同步
+  // 私密纪念馆访问密码（bcrypt 哈希），仅 PRIVATE 且设置后生效
+  accessPassword String?
   isVerified    Boolean         @default(false)
   visitorCount  Int             @default(0)
   tributeCount  Int             @default(0)

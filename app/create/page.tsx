@@ -45,6 +45,8 @@ export default function CreatePage() {
     photos: [] as string[],
     voiceSample: false,
     plan: "pro",
+    visibility: "PUBLIC" as "PUBLIC" | "FAMILY" | "PRIVATE",
+    accessPassword: "",
   });
 
   const steps = [
@@ -127,6 +129,11 @@ export default function CreatePage() {
           birthYear: parseInt(formData.birthYear),
           deathYear: parseInt(formData.deathYear),
           timeline: timelineEvents,
+          visibility: formData.visibility,
+          accessPassword:
+            formData.visibility === "PRIVATE" && formData.accessPassword
+              ? formData.accessPassword
+              : undefined,
         }),
       });
 
@@ -552,42 +559,92 @@ export default function CreatePage() {
               </div>
             )}
 
-            {/* Step 6: Plan */}
+            {/* Step 6: Plan + Privacy */}
             {step === 6 && (
               <div className="space-y-5 animate-fade-in">
-                <h2 className="text-xl font-semibold text-white mb-4">选择方案</h2>
+                <h2 className="text-xl font-semibold text-white mb-4">隐私与可见性</h2>
+                <p className="text-sm text-mist-400">设置谁可以访问这座纪念馆，创建后仍可随时修改。</p>
 
                 <div className="space-y-3">
                   {[
-                    { id: "basic", name: "基础版", price: "¥0", desc: "永久免费", features: ["纪念馆创建", "基础信息展示", "生平时间线", "祭奠互动", "AI对话（每日3条）"] },
-                    { id: "pro", name: "Pro版", price: "¥299/年", desc: "推荐", features: ["基础版全部功能", "无限AI对话", "语音克隆", "时光信箱", "照片墙500张", "视频纪念"] },
-                    { id: "family", name: "家族版", price: "¥899/年", desc: "家族传承", features: ["Pro版全部功能", "家族树", "记忆胶囊", "跨代际传承", "无限存储", "专属客服"] },
-                  ].map((plan) => (
+                    { value: "PUBLIC", label: "公开", desc: "所有人都能浏览这座纪念馆", icon: "🌐" },
+                    { value: "FAMILY", label: "亲友", desc: "仅持有邀请码的人可以浏览", icon: "👨‍👩‍👧‍👦" },
+                    { value: "PRIVATE", label: "私密", desc: "仅你自己可见，可设置访问密码分享", icon: "🔒" },
+                  ].map((opt) => (
                     <button
-                      key={plan.id}
-                      onClick={() => setFormData({ ...formData, plan: plan.id })}
-                      className={`w-full text-left p-5 rounded-2xl transition-all duration-300 ${
-                        formData.plan === plan.id
-                          ? "bg-amethyst-500/10 border-2 border-amethyst-500/40 glow-border"
+                      key={opt.value}
+                      onClick={() => setFormData({ ...formData, visibility: opt.value as any })}
+                      className={`w-full text-left p-4 rounded-2xl transition-all duration-300 ${
+                        formData.visibility === opt.value
+                          ? "bg-amethyst-500/10 border-2 border-amethyst-500/40"
                           : "bg-midnight-800/40 border-2 border-transparent hover:border-amethyst-500/20"
                       }`}
                     >
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-2">
-                          <span className="text-lg font-semibold text-white">{plan.name}</span>
-                          {plan.desc === "推荐" && (
-                            <span className="px-2 py-0.5 rounded-full bg-amethyst-500/20 text-xs text-amethyst-300">推荐</span>
-                          )}
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl">{opt.icon}</span>
+                        <div>
+                          <div className="text-sm font-semibold text-white">{opt.label}</div>
+                          <div className="text-xs text-mist-400">{opt.desc}</div>
                         </div>
-                        <span className="text-lg font-bold text-gradient-gold">{plan.price}</span>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {plan.features.map((f) => (
-                          <span key={f} className="text-xs text-mist-400">✓ {f}</span>
-                        ))}
+                        {formData.visibility === opt.value && (
+                          <span className="ml-auto text-amethyst-400">✓</span>
+                        )}
                       </div>
                     </button>
                   ))}
+                </div>
+
+                {formData.visibility === "PRIVATE" && (
+                  <div className="glass-card p-4 bg-amethyst-500/5">
+                    <label className="text-sm text-mist-300 mb-2 block">访问密码（可选）</label>
+                    <input
+                      type="password"
+                      value={formData.accessPassword}
+                      onChange={(e) => setFormData({ ...formData, accessPassword: e.target.value })}
+                      placeholder="设置后，凭密码即可访问（至少4位）"
+                      className="w-full bg-midnight-700/60 text-mist-200 placeholder-mist-400/50 rounded-xl px-4 py-3 text-sm border border-amethyst-500/15 focus:outline-none focus:border-amethyst-500/40 transition-colors"
+                    />
+                    <p className="text-xs text-mist-400 mt-2">
+                      不设密码则仅你自己可见。设密码后，可把密码告知想分享的人。
+                    </p>
+                  </div>
+                )}
+
+                <div className="pt-2 border-t border-amethyst-500/10">
+                  <h2 className="text-xl font-semibold text-white mb-4 mt-4">选择方案</h2>
+
+                  <div className="space-y-3">
+                    {[
+                      { id: "basic", name: "基础版", price: "¥0", desc: "永久免费", features: ["纪念馆创建", "基础信息展示", "生平时间线", "祭奠互动", "AI对话（每日3条）"] },
+                      { id: "pro", name: "Pro版", price: "¥299/年", desc: "推荐", features: ["基础版全部功能", "无限AI对话", "语音克隆", "时光信箱", "照片墙500张", "视频纪念"] },
+                      { id: "family", name: "家族版", price: "¥899/年", desc: "家族传承", features: ["Pro版全部功能", "家族树", "记忆胶囊", "跨代际传承", "无限存储", "专属客服"] },
+                    ].map((plan) => (
+                      <button
+                        key={plan.id}
+                        onClick={() => setFormData({ ...formData, plan: plan.id })}
+                        className={`w-full text-left p-5 rounded-2xl transition-all duration-300 ${
+                          formData.plan === plan.id
+                            ? "bg-amethyst-500/10 border-2 border-amethyst-500/40 glow-border"
+                            : "bg-midnight-800/40 border-2 border-transparent hover:border-amethyst-500/20"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <span className="text-lg font-semibold text-white">{plan.name}</span>
+                            {plan.desc === "推荐" && (
+                              <span className="px-2 py-0.5 rounded-full bg-amethyst-500/20 text-xs text-amethyst-300">推荐</span>
+                            )}
+                          </div>
+                          <span className="text-lg font-bold text-gradient-gold">{plan.price}</span>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {plan.features.map((f) => (
+                            <span key={f} className="text-xs text-mist-400">✓ {f}</span>
+                          ))}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 {error && (

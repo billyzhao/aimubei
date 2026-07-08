@@ -3,9 +3,11 @@ import { prisma } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { z } from "zod";
+import { hashPassword } from "@/lib/password";
 
 const visibilitySchema = z.object({
   visibility: z.enum(["PUBLIC", "FAMILY", "PRIVATE"]),
+  accessPassword: z.string().min(4, "密码至少4位").max(64).optional(),
 });
 
 export async function PUT(
@@ -34,14 +36,23 @@ export async function PUT(
     const result = visibilitySchema.safeParse(body);
 
     if (!result.success) {
-      return NextResponse.json({ error: "参数有误" }, { status: 400 });
+      return NextResponse.json({ error: result.error.issues[0]?.message || "参数有误" }, { status: 400 });
+    }
+
+    const { visibility, accessPassword } = result.data;
+
+    // 计算访问密码：仅 PRIVATE 且提供了密码时生效；否则清空
+    let accessPasswordHash: string | null = null;
+    if (visibility === "PRIVATE" && accessPassword) {
+      accessPasswordHash = await hashPassword(accessPassword);
     }
 
     const updated = await prisma.memorial.update({
       where: { id: memorial.id },
       data: {
-        visibility: result.data.visibility,
-        isPublic: result.data.visibility === "PUBLIC",
+        visibility,
+        isPublic: visibility === "PUBLIC",
+        accessPassword: accessPasswordHash,
       },
     });
 

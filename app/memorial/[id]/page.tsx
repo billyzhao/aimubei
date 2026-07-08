@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { cookies } from "next/headers";
 import type { Metadata } from "next";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
@@ -12,7 +13,8 @@ import AnimatedSection from "@/components/AnimatedSection";
 import ParticleBackground from "@/components/ParticleBackground";
 import VisitorStats from "@/components/VisitorStats";
 import ShareButton from "@/components/ShareButton";
-import { getMemorialBySlug, getAllMemorials } from "@/lib/data";
+import AccessDenied from "@/components/AccessDenied";
+import { getMemorialForView, getAllMemorials } from "@/lib/data";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import type { Memorial } from "@/lib/types";
@@ -28,23 +30,41 @@ function getAvatarEmoji(memorial: { name: string; title: string; traits?: string
   return "🌿";
 }
 
+// 从 cookie / URL 解析访问凭证
+function resolveAccessToken(slug: string, searchParams: Record<string, string | string[] | undefined>) {
+  const cookieStore = cookies();
+  const cookieToken = cookieStore.get(`mem_access_${slug}`)?.value || null;
+  const urlInvite = typeof searchParams.invite === "string" ? searchParams.invite : null;
+  return cookieToken || (urlInvite ? `invite:${urlInvite}` : null);
+}
+
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://evermind.cn";
 
-export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
-  const memorial = await getMemorialBySlug(params.id);
+export async function generateMetadata({
+  params,
+  searchParams,
+}: {
+  params: { id: string };
+  searchParams: Record<string, string | string[] | undefined>;
+}): Promise<Metadata> {
+  const session = await getServerSession(authOptions);
+  const token = resolveAccessToken(params.id, searchParams);
+  const result = await getMemorialForView(params.id, session, token);
 
-  if (!memorial) {
+  // 私密/亲友纪念馆：不暴露任何信息给搜索引擎/分享卡片
+  if ("denied" in result) {
     return {
-      title: "纪念馆未找到 — 永念 EverMind",
+      title: "纪念馆 — 永念 EverMind",
+      robots: { index: false, follow: false },
     };
   }
 
+  const memorial = result.memorial;
   const title = `${memorial.name} — ${memorial.title}`;
   const description = memorial.bio
     ? memorial.bio.substring(0, 160)
     : `缅怀 ${memorial.name}，在永念 EverMind 数字纪念空间中，让思念可以对话。`;
 
-  // og:image 回退链：头像 → 首张照片 → 默认品牌图
   const ogImage =
     memorial.avatar ||
     (memorial.photos && memorial.photos.length > 0 ? memorial.photos[0] : "") ||
@@ -54,6 +74,7 @@ export async function generateMetadata({ params }: { params: { id: string } }): 
     title,
     description,
     keywords: [memorial.name, memorial.title, "纪念馆", "数字纪念", "AI纪念", "永念", "EverMind"],
+    robots: memorial.visibility === "PUBLIC" ? undefined : { index: false, follow: false },
     metadataBase: new URL(SITE_URL),
     alternates: {
       canonical: `/memorial/${memorial.slug}`,
@@ -75,8 +96,31 @@ export async function generateMetadata({ params }: { params: { id: string } }): 
   };
 }
 
-export default async function MemorialPage({ params }: { params: { id: string } }) {
-  const memorial: Memorial | null = await getMemorialBySlug(params.id);
+export default async function MemorialPage({
+  params,
+  searchParams,
+}: {
+  params: { id: string };
+  searchParams: Record<string, string | string[] | undefined>;
+}) {
+  const session = await getServerSession(authOptions);
+  const token = resolveAccessToken(params.id, searchParams);
+  const result = await getMemorialForView(params.id, session, token);
+
+  if ("denied" in result) {
+    return (
+      <AccessDenied
+        slug={params.id}
+        reason={result.denied.reason}
+        requireInvite={result.denied.requireInvite}
+        requirePassword={result.denied.requirePassword}
+        memorialName={result.denied.name}
+      />
+    );
+  }
+
+  const memorial: Memorial = result.memorial;
+  const isOwner = result.isOwner;
 
   if (!memorial) {
     notFound();
@@ -85,20 +129,6 @@ export default async function MemorialPage({ params }: { params: { id: string } 
   // 获取其他纪念馆
   const allMemorials = await getAllMemorials();
   const otherMemorials = allMemorials.filter((m) => m.id !== memorial.id).slice(0, 3);
-
-  // 检查是否是owner（显示编辑按钮）
-  const session = await getServerSession(authOptions);
-  const memorialRecord = await getAllMemorials();
-  const currentMemorial = memorialRecord.find((m) => m.id === params.id);
-  let isOwner = false;
-  if (session?.user?.id && currentMemorial) {
-    const { prisma } = await import("@/lib/db");
-    const dbMemorial = await prisma.memorial.findUnique({
-      where: { slug: params.id },
-      select: { ownerId: true },
-    });
-    isOwner = dbMemorial?.ownerId === session.user.id;
-  }
 
   // 统计各类祭奠数量
   const tributes = memorial.tributes || [];
@@ -130,6 +160,11 @@ export default async function MemorialPage({ params }: { params: { id: string } 
               ← 返回纪念馆列表
             </Link>
             <div className="ml-auto flex items-center gap-2">
+              {memorial.visibility !== "PUBLIC" && (
+                <span className="text-xs px-2 py-1 rounded-full bg-amethyst-500/10 text-amethyst-300 border border-amethyst-500/20">
+                  {memorial.visibility === "PRIVATE" ? "🔒 私密" : "👨‍👩‍👧‍👦 亲友"}
+                </span>
+              )}
               <ShareButton
                 slug={memorial.slug || ""}
                 name={memorial.name}
@@ -317,8 +352,8 @@ export default async function MemorialPage({ params }: { params: { id: string } 
               </h2>
               <p className="text-sm text-mist-400">那些被定格的温暖瞬间</p>
             </div>
-            <PhotoWall photos={memorial.photos || []} />
           </AnimatedSection>
+          <PhotoWall photos={memorial.photos || []} />
         </div>
 
         {/* Time Letter */}

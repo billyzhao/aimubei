@@ -2,7 +2,19 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { checkMemorialAccess } from "@/lib/data";
 import { z } from "zod";
+
+// 从请求头解析指定名称的 cookie
+function getCookie(req: Request, name: string): string | undefined {
+  const header = req.headers.get("cookie");
+  if (!header) return undefined;
+  for (const part of header.split(";")) {
+    const [k, ...v] = part.trim().split("=");
+    if (k === name) return decodeURIComponent(v.join("="));
+  }
+  return undefined;
+}
 
 const updateSchema = z.object({
   name: z.string().min(1, "请输入姓名").max(50).optional(),
@@ -17,7 +29,7 @@ const updateSchema = z.object({
   coverImage: z.string().optional(),
 });
 
-// 获取单个纪念馆详情（编辑用）
+// 获取单个纪念馆详情（含 visibility 访问控制）
 export async function GET(
   req: Request,
   { params }: { params: { slug: string } }
@@ -34,6 +46,46 @@ export async function GET(
 
     if (!memorial) {
       return NextResponse.json({ error: "纪念馆不存在" }, { status: 404 });
+    }
+
+    // PUBLIC 纪念馆：任何人可访问
+    if (memorial.visibility === "PUBLIC") {
+      return NextResponse.json(memorial);
+    }
+
+    // 获取当前会话 + 访问凭证（密码/邀请码 cookie，或 URL ?invite=）
+    const session = await getServerSession(authOptions);
+    const cookieToken = getCookie(req, `mem_access_${memorial.slug}`);
+    const urlInvite = new URL(req.url).searchParams.get("invite");
+    const token = cookieToken || (urlInvite ? `invite:${urlInvite}` : undefined);
+
+    const access = await checkMemorialAccess(
+      {
+        id: memorial.id,
+        ownerId: memorial.ownerId,
+        visibility: memorial.visibility,
+        accessPassword: memorial.accessPassword,
+      },
+      session,
+      token
+    );
+
+    if (!access.allowed) {
+      const status = access.reason === "not_found" ? 404 : 403;
+      return NextResponse.json(
+        {
+          error:
+            access.reason === "private"
+              ? "这是私密纪念馆，需要密码或所有者权限"
+              : access.reason === "family"
+              ? "这是亲友纪念馆，需要邀请码"
+              : "无权访问",
+          accessDenied: true,
+          requirePassword: access.requirePassword,
+          requireInvite: access.requireInvite,
+        },
+        { status }
+      );
     }
 
     return NextResponse.json(memorial);

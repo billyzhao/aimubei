@@ -32,13 +32,119 @@ export async function getMemorialBySlug(slug: string): Promise<Memorial | null> 
 
   if (!memorial) return null;
 
-  // 增加访问计数
+  return transformMemorial(memorial);
+}
+
+// 获取纪念馆原始数据（不含访问计数，用于访问控制检查）
+export async function getMemorialRaw(slug: string) {
+  return prisma.memorial.findUnique({
+    where: { slug },
+    include: {
+      timeline: { orderBy: { order: "asc" } },
+      tributes: { orderBy: { createdAt: "desc" } },
+      photos: { orderBy: { order: "asc" } },
+    },
+  });
+}
+
+// 检查纪念馆访问权限
+// token: 来自 cookie 或 URL 的访问凭证
+//   - FAMILY 邀请码: "invite:<CODE>"
+//   - PRIVATE 密码:  "pw:<bcryptHash>"
+// 返回: { allowed: true } 或 { allowed: false, reason, requireInvite?, requirePassword? }
+export async function checkMemorialAccess(
+  memorial: { id: string; ownerId: string; visibility: string; accessPassword?: string | null } | null,
+  session: { user?: { id?: string } } | null,
+  token?: string | null
+): Promise<{ allowed: boolean; reason?: string; requireInvite?: boolean; requirePassword?: boolean }> {
+  if (!memorial) return { allowed: false, reason: "not_found" };
+
+  // PUBLIC：任何人可访问
+  if (memorial.visibility === "PUBLIC") return { allowed: true };
+
+  // Owner 始终可访问
+  if (session?.user?.id && memorial.ownerId === session.user.id) return { allowed: true };
+
+  // 凭证校验（cookie / URL 邀请码）
+  if (token) {
+    if (memorial.visibility === "PRIVATE" && token.startsWith("pw:")) {
+      const hash = token.slice(3);
+      if (hash && hash === memorial.accessPassword) return { allowed: true };
+    }
+    if (memorial.visibility === "FAMILY" && token.startsWith("invite:")) {
+      const code = token.slice(7).toUpperCase();
+      const invite = await prisma.inviteCode.findFirst({
+        where: {
+          code,
+          memorialId: memorial.id,
+          OR: [
+            { expiresAt: null },
+            { expiresAt: { gt: new Date() } },
+          ],
+        },
+      });
+      if (invite) return { allowed: true };
+    }
+  }
+
+  // PRIVATE：设置了密码则需要密码，否则仅 owner
+  if (memorial.visibility === "PRIVATE") {
+    return {
+      allowed: false,
+      reason: "private",
+      requirePassword: !!memorial.accessPassword,
+    };
+  }
+
+  // FAMILY：需要邀请码
+  if (memorial.visibility === "FAMILY") {
+    return { allowed: false, reason: "family", requireInvite: true };
+  }
+
+  return { allowed: true };
+}
+
+// 获取纪念馆用于展示（含访问控制）
+// 返回 { memorial, isOwner } 或 { denied: {...} }
+export async function getMemorialForView(
+  slug: string,
+  session: { user?: { id?: string } } | null,
+  token?: string | null
+): Promise<
+  | { memorial: Memorial; isOwner: boolean }
+  | { denied: { reason: string; requireInvite?: boolean; requirePassword?: boolean; name: string } }
+> {
+  const raw = await getMemorialRaw(slug);
+  if (!raw) {
+    return { denied: { reason: "not_found", name: "" } };
+  }
+
+  const access = await checkMemorialAccess(raw, session, token);
+  if (!access.allowed) {
+    return {
+      denied: {
+        reason: access.reason || "forbidden",
+        requireInvite: access.requireInvite,
+        requirePassword: access.requirePassword,
+        name: raw.name,
+      },
+    };
+  }
+
+  // 授权访问才增加计数
+  await incrementVisitorCount(raw.id);
+
+  const memorial = transformMemorial(raw);
+  const isOwner = !!(session?.user?.id && raw.ownerId === session.user.id);
+  return { memorial, isOwner };
+}
+
+// 增加访问计数（仅授权访问时调用）
+export async function incrementVisitorCount(memorialId: string) {
   await prisma.memorial.update({
-    where: { id: memorial.id },
+    where: { id: memorialId },
     data: { visitorCount: { increment: 1 } },
   });
-
-  return transformMemorial(memorial);
 }
 
 export async function getMemorialsByOwner(ownerId: string) {
@@ -260,7 +366,7 @@ export async function saveChatMessage(data: {
 // 数据转换工具
 // ====================================
 
-function transformMemorial(m: any): Memorial {
+export function transformMemorial(m: any): Memorial {
   return {
     id: m.slug, // 前端用 slug 作为标识
     slug: m.slug,
