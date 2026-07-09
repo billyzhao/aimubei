@@ -2,8 +2,9 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { getAllMemorials } from "@/lib/data";
+import { getAllMemorials, searchMemorials } from "@/lib/data";
 import MemorialSearch from "@/components/MemorialSearch";
+import { Highlight } from "@/components/Highlight";
 
 export const metadata: Metadata = {
   title: "纪念馆列表 — 永念 EverMind",
@@ -30,19 +31,16 @@ function getAvatarEmoji(title: string, traits: string[]): string {
 export default async function MemorialsPage({
   searchParams,
 }: {
-  searchParams?: { q?: string };
+  searchParams?: { q?: string; year?: string };
 }) {
   const q = searchParams?.q || "";
-  const allMemorials = await getAllMemorials();
+  const yearParam = searchParams?.year || "";
+  const year = /^\d{4}$/.test(yearParam) ? parseInt(yearParam, 10) : undefined;
 
-  const filtered = q
-    ? allMemorials.filter(
-        (m) =>
-          m.name.includes(q) ||
-          m.title.includes(q) ||
-          m.bio.includes(q)
-      )
-    : allMemorials;
+  const allMemorials =
+    q || year ? await searchMemorials({ q, year }) : await getAllMemorials();
+
+  const isSearch = !!(q || year);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -61,14 +59,55 @@ export default async function MemorialsPage({
           </div>
 
           {/* Search Bar */}
-          <div className="glass-card p-4 mb-8">
-            <MemorialSearch initialQuery={q} />
+          <div className="glass-card p-4 mb-6">
+            <MemorialSearch initialQuery={q} initialYear={yearParam} />
           </div>
 
+          {/* Search result banner */}
+          {isSearch && (
+            <div className="mb-6 text-sm text-mist-400">
+              {allMemorials.length > 0 ? (
+                <>
+                  搜索
+                  {q && (
+                    <>
+                      {" "}
+                      <span className="text-amethyst-300">“{q}”</span>
+                    </>
+                  )}
+                  {year && (
+                    <>
+                      {" "}
+                      <span className="text-amethyst-300">{year} 年代</span>
+                    </>
+                  )}
+                  {" "}找到 <span className="text-white font-medium">{allMemorials.length}</span> 个纪念馆
+                </>
+              ) : (
+                <>
+                  未找到匹配
+                  {q && (
+                    <>
+                      {" "}
+                      <span className="text-amethyst-300">“{q}”</span>
+                    </>
+                  )}
+                  {year && (
+                    <>
+                      {" "}
+                      <span className="text-amethyst-300">{year} 年代</span>
+                    </>
+                  )}
+                  {" "}的纪念馆
+                </>
+              )}
+            </div>
+          )}
+
           {/* Memorial Cards */}
-          {filtered.length > 0 ? (
+          {allMemorials.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filtered.map((memorial) => (
+              {allMemorials.map((memorial) => (
                 <Link
                   key={memorial.slug}
                   href={`/memorial/${memorial.slug}`}
@@ -94,11 +133,13 @@ export default async function MemorialsPage({
                   {/* Info */}
                   <div className="p-5">
                     <h3 className="text-lg font-semibold text-white group-hover:text-amethyst-400 transition-colors mb-1">
-                      {memorial.name}
+                      <Highlight text={memorial.name} query={q} />
                     </h3>
-                    <p className="text-sm text-mist-400 mb-3">{memorial.title}</p>
+                    <p className="text-sm text-mist-400 mb-3">
+                      <Highlight text={memorial.title} query={q} />
+                    </p>
                     <p className="text-xs text-mist-400 leading-relaxed overflow-hidden" style={{ maxHeight: "2.6em" }}>
-                      {memorial.bio}
+                      <Highlight text={memorial.bio} query={q} />
                     </p>
 
                     {/* Traits */}

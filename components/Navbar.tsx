@@ -2,14 +2,23 @@
 
 import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [visible, setVisible] = useState(true);
+  const [navQuery, setNavQuery] = useState("");
   const lastScrollY = useRef(0);
+  const router = useRouter();
   const { data: session, status } = useSession();
+
+  const handleNavSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    const q = navQuery.trim();
+    router.push(`/memorials${q ? `?q=${encodeURIComponent(q)}` : ""}`);
+  };
 
   // Scroll hide/show behavior
   useEffect(() => {
@@ -53,13 +62,31 @@ export default function Navbar() {
         </Link>
 
         {/* Desktop nav */}
-        <div className="hidden md:flex items-center gap-7">
+        <div className="hidden lg:flex items-center gap-6">
           <NavLink href="/" label="首页" />
           <NavLink href="/memorials" label="纪念馆" />
           <NavLink href="/create" label="创建" />
           <NavLink href="/#features" label="功能" />
           <NavLink href="/#about" label="关于" />
         </div>
+
+        {/* Desktop search */}
+        <form onSubmit={handleNavSearch} className="hidden md:flex items-center ml-2">
+          <input
+            type="text"
+            value={navQuery}
+            onChange={(e) => setNavQuery(e.target.value)}
+            placeholder="搜索纪念馆..."
+            className="w-40 xl:w-52 bg-midnight-700/60 text-mist-200 placeholder-mist-400/50 rounded-lg pl-3 pr-8 py-1.5 text-sm border border-amethyst-500/15 focus:outline-none focus:border-amethyst-500/40 transition-colors"
+          />
+          <button
+            type="submit"
+            aria-label="搜索"
+            className="ml-[-2rem] text-mist-400 hover:text-amethyst-300 transition-colors"
+          >
+            🔍
+          </button>
+        </form>
 
         {/* Desktop auth */}
         <div className="hidden md:flex items-center gap-3 shrink-0">

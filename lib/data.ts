@@ -20,6 +20,69 @@ export async function getAllMemorials(): Promise<Memorial[]> {
   return memorials.map(transformMemorial);
 }
 
+// ====================================
+// 全文搜索（服务端 SQL 级）
+// 覆盖：姓名 / 标题 / 生平 / 性格 / 标签(JSON) / 语录(JSON)
+// 年代：输入 4 位数字自动当生卒年匹配，也支持显式 year 参数
+// 仅搜索 PUBLIC 纪念馆（私密/亲友不出现在公开搜索结果）
+// ====================================
+export async function searchMemorials(opts: {
+  q?: string;
+  year?: number;
+} = {}): Promise<Memorial[]> {
+  const q = opts.q?.trim();
+  const isYearQuery = !!q && /^\d{4}$/.test(q);
+  const yearFromQ = isYearQuery ? parseInt(q, 10) : undefined;
+  const year = opts.year ?? yearFromQ;
+
+  const where: any = { visibility: "PUBLIC" };
+  const or: any[] = [];
+
+  if (q && !isYearQuery) {
+    or.push(
+      { name: { contains: q } },
+      { title: { contains: q } },
+      { bio: { contains: q } },
+      { personality: { contains: q } },
+      { traits: { contains: q } },
+      { quotes: { contains: q } }
+    );
+  }
+  if (year) {
+    or.push({ birthYear: year }, { deathYear: year });
+  }
+  if (or.length) where.OR = or;
+
+  const rows = await prisma.memorial.findMany({
+    where,
+    include: { _count: { select: { tributes: true, photos: true } } },
+    orderBy: { createdAt: "desc" },
+  });
+
+  const mapped = rows.map((m) => transformMemorial(m));
+
+  // 关键词搜索：按相关度打分排序，命中姓名权重最高
+  if (q && !isYearQuery) {
+    const scored = mapped.map((m) => ({ m, s: scoreMemorial(m, q) }));
+    scored.sort((a, b) => b.s - a.s || b.m.visitorCount - a.m.visitorCount);
+    return scored.map((x) => x.m);
+  }
+
+  return mapped;
+}
+
+// 相关度打分：name > title > bio > personality > traits/quotes
+function scoreMemorial(m: Memorial, q: string): number {
+  let s = 0;
+  if (m.name.includes(q)) s += 100;
+  if (m.title.includes(q)) s += 50;
+  if (m.bio.includes(q)) s += 20;
+  if ((m.personality || "").includes(q)) s += 15;
+  if ((m.traits || []).some((t) => t.includes(q))) s += 10;
+  if ((m.quotes || []).some((t) => t.includes(q))) s += 10;
+  return s;
+}
+
 export async function getMemorialBySlug(slug: string): Promise<Memorial | null> {
   const memorial = await prisma.memorial.findUnique({
     where: { slug },
