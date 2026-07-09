@@ -47,6 +47,8 @@ export default function CreatePage() {
     plan: "pro",
     visibility: "PUBLIC" as "PUBLIC" | "FAMILY" | "PRIVATE",
     accessPassword: "",
+    relationship: "",
+    region: "",
   });
 
   const steps = [
@@ -59,6 +61,9 @@ export default function CreatePage() {
   ];
 
   const traitOptions = ["温和", "幽默", "严肃", "开朗", "内向", "热情", "睿智", "坚韧", "温柔", "严谨", "乐观", "沉静"];
+
+  const relationshipOptions = ["父母", "配偶", "子女", "师友", "战友", "恩师", "其他"];
+  const regionOptions = ["华北", "东北", "华东", "华中", "华南", "西南", "西北", "港澳台", "海外", "其他"];
 
   const toggleTrait = (trait: string) => {
     setFormData((prev) => ({
@@ -130,6 +135,8 @@ export default function CreatePage() {
           deathYear: parseInt(formData.deathYear),
           timeline: timelineEvents,
           visibility: formData.visibility,
+          relationship: formData.relationship || undefined,
+          region: formData.region || undefined,
           accessPassword:
             formData.visibility === "PRIVATE" && formData.accessPassword
               ? formData.accessPassword
@@ -302,6 +309,44 @@ export default function CreatePage() {
                       女
                     </button>
                   </div>
+                </div>
+
+                {/* Relationship type */}
+                <div>
+                  <label className="text-sm text-mist-300 mb-2 block">关系类型</label>
+                  <div className="flex flex-wrap gap-2">
+                    {relationshipOptions.map((r) => (
+                      <button
+                        key={r}
+                        type="button"
+                        onClick={() => setFormData({ ...formData, relationship: r })}
+                        className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
+                          formData.relationship === r
+                            ? "bg-gradient-to-r from-amethyst-600 to-amethyst-500 text-white shadow-lg shadow-amethyst-500/20"
+                            : "bg-midnight-700/40 text-mist-400 border border-amethyst-500/15 hover:border-amethyst-500/30"
+                        }`}
+                      >
+                        {r}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Region */}
+                <div>
+                  <label className="text-sm text-mist-300 mb-2 block">地区</label>
+                  <select
+                    value={formData.region}
+                    onChange={(e) => setFormData({ ...formData, region: e.target.value })}
+                    className="w-full bg-midnight-700/60 text-mist-200 rounded-xl px-4 py-3 text-sm border border-amethyst-500/15 focus:outline-none focus:border-amethyst-500/40 transition-colors"
+                  >
+                    <option value="">不指定</option>
+                    {regionOptions.map((r) => (
+                      <option key={r} value={r}>
+                        {r}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
             )}

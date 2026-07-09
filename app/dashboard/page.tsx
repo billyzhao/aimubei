@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import NotificationActivity from "@/components/NotificationActivity";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getMemorialsByOwner } from "@/lib/data";
@@ -146,6 +147,11 @@ export default async function DashboardPage() {
               </Link>
             </div>
           )}
+
+          {/* Latest Activity (通知动态) */}
+          <div id="activity" className="mt-12 scroll-mt-24">
+            <NotificationActivity />
+          </div>
 
           {/* Account Settings Preview */}
           <div className="mt-12">

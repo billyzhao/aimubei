@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { createNotification } from "@/lib/data";
 
 // 添加祭奠（献花/点烛/留言）
 export async function POST(req: Request) {
@@ -43,6 +44,22 @@ export async function POST(req: Request) {
       where: { id: memorial.id },
       data: { tributeCount: { increment: 1 } },
     });
+
+    // 留言通知馆主（仅留言类型触发）
+    if (type === "message") {
+      try {
+        await createNotification({
+          userId: memorial.ownerId,
+          memorialId: memorial.id,
+          memorialSlug: memorial.slug,
+          memorialName: memorial.name,
+          type: "NEW_MESSAGE",
+          content: content || "",
+        });
+      } catch (notifyErr) {
+        console.error("插入留言通知失败:", notifyErr);
+      }
+    }
 
     return NextResponse.json({
       id: tribute.id,

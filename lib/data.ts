@@ -5,16 +5,34 @@ import type { Memorial, TimelineEvent, Tribute } from "./types";
 // 纪念馆查询
 // ====================================
 
-export async function getAllMemorials(): Promise<Memorial[]> {
+// 纪念馆排序方式
+export type MemorialSort = "newest" | "popular" | "tributes";
+
+export async function getAllMemorials(opts: {
+  sort?: MemorialSort;
+  relationship?: string;
+  region?: string;
+} = {}): Promise<Memorial[]> {
+  const where: any = { isPublic: true };
+  if (opts.relationship) where.relationship = opts.relationship;
+  if (opts.region) where.region = opts.region;
+
+  const orderBy: any =
+    opts.sort === "popular"
+      ? [{ visitorCount: "desc" }, { createdAt: "desc" }]
+      : opts.sort === "tributes"
+      ? [{ tributeCount: "desc" }, { createdAt: "desc" }]
+      : { createdAt: "desc" };
+
   const memorials = await prisma.memorial.findMany({
-    where: { isPublic: true },
+    where,
     include: {
       timeline: { orderBy: { order: "asc" } },
       tributes: { orderBy: { createdAt: "desc" }, take: 10 },
       photos: { orderBy: { order: "asc" } },
       _count: { select: { tributes: true } },
     },
-    orderBy: { createdAt: "desc" },
+    orderBy,
   });
 
   return memorials.map(transformMemorial);
@@ -29,6 +47,9 @@ export async function getAllMemorials(): Promise<Memorial[]> {
 export async function searchMemorials(opts: {
   q?: string;
   year?: number;
+  sort?: MemorialSort;
+  relationship?: string;
+  region?: string;
 } = {}): Promise<Memorial[]> {
   const q = opts.q?.trim();
   const isYearQuery = !!q && /^\d{4}$/.test(q);
@@ -36,6 +57,9 @@ export async function searchMemorials(opts: {
   const year = opts.year ?? yearFromQ;
 
   const where: any = { visibility: "PUBLIC" };
+  // 标签筛选（与关键词/年代是 AND 关系，叠加在顶层 where）
+  if (opts.relationship) where.relationship = opts.relationship;
+  if (opts.region) where.region = opts.region;
   const or: any[] = [];
 
   if (q && !isYearQuery) {
@@ -68,6 +92,12 @@ export async function searchMemorials(opts: {
     return scored.map((x) => x.m);
   }
 
+  // 指定排序维度（无关键词时生效）
+  if (opts.sort === "popular") {
+    mapped.sort((a, b) => b.visitorCount - a.visitorCount);
+  } else if (opts.sort === "tributes") {
+    mapped.sort((a, b) => b.tributeCount - a.tributeCount);
+  }
   return mapped;
 }
 
@@ -228,6 +258,8 @@ export async function getMemorialsByOwner(ownerId: string) {
     birthYear: m.birthYear,
     deathYear: m.deathYear,
     avatar: m.avatar,
+    relationship: m.relationship || null,
+    region: m.region || null,
     visitorCount: m.visitorCount,
     tributeCount: m._count.tributes,
     photoCount: m._count.photos,
@@ -303,6 +335,8 @@ export async function createMemorial(data: {
   birthYear: number;
   deathYear: number;
   ownerId: string;
+  relationship?: string;
+  region?: string;
   timeline?: { year: number; title: string; description: string; icon: string }[];
 }) {
   const memorial = await prisma.memorial.create({
@@ -317,6 +351,8 @@ export async function createMemorial(data: {
       birthYear: data.birthYear,
       deathYear: data.deathYear,
       ownerId: data.ownerId,
+      relationship: data.relationship || null,
+      region: data.region || null,
       timeline: data.timeline?.length
         ? {
             create: data.timeline.map((t, i) => ({
@@ -335,13 +371,17 @@ export async function createMemorial(data: {
 // 首页精选纪念馆
 // ====================================
 
-export async function getFeaturedMemorials(limit = 6): Promise<Memorial[]> {
+export async function getFeaturedMemorials(limit = 6, sort: MemorialSort = "popular"): Promise<Memorial[]> {
+  const orderBy: any =
+    sort === "newest"
+      ? { createdAt: "desc" }
+      : sort === "tributes"
+      ? [{ tributeCount: "desc" }, { visitorCount: "desc" }]
+      : [{ tributeCount: "desc" }, { visitorCount: "desc" }];
+
   const memorials = await prisma.memorial.findMany({
     where: { visibility: "PUBLIC" },
-    orderBy: [
-      { tributeCount: "desc" },
-      { visitorCount: "desc" },
-    ],
+    orderBy,
     take: limit,
     include: {
       _count: { select: { tributes: true, photos: true } },
@@ -441,6 +481,8 @@ export function transformMemorial(m: any): Memorial {
     coverImage: m.coverImage || "",
     bio: m.bio,
     personality: m.personality || "",
+    relationship: m.relationship || null,
+    region: m.region || null,
     traits: safeParseArray(m.traits),
     quotes: safeParseArray(m.quotes),
     timeline: (m.timeline || []).map((t: any) => ({
@@ -531,4 +573,67 @@ export function generateAIReply(userMessage: string, personality?: string): stri
   }
 
   return pool[Math.floor(Math.random() * pool.length)];
+}
+
+// ====================================
+// 通知系统
+// ====================================
+
+export async function createNotification(data: {
+  userId: string;
+  memorialId: string;
+  memorialSlug: string;
+  memorialName: string;
+  type: "NEW_MESSAGE" | "NEW_VISITOR";
+  content?: string | null;
+}) {
+  return prisma.notification.create({
+    data: {
+      userId: data.userId,
+      memorialId: data.memorialId,
+      memorialSlug: data.memorialSlug,
+      memorialName: data.memorialName,
+      type: data.type,
+      content: data.content || null,
+    },
+  });
+}
+
+export async function getNotificationsByUser(userId: string, limit = 20) {
+  const rows = await prisma.notification.findMany({
+    where: { userId },
+    orderBy: { createdAt: "desc" },
+    take: limit,
+  });
+  return rows.map((n) => ({
+    id: n.id,
+    userId: n.userId,
+    memorialId: n.memorialId,
+    memorialSlug: n.memorialSlug,
+    memorialName: n.memorialName,
+    type: n.type as "NEW_MESSAGE" | "NEW_VISITOR",
+    content: n.content,
+    isRead: n.isRead,
+    createdAt: n.createdAt.toISOString(),
+  }));
+}
+
+export async function getUnreadNotificationCount(userId: string): Promise<number> {
+  return prisma.notification.count({
+    where: { userId, isRead: false },
+  });
+}
+
+export async function markNotificationRead(id: string, userId: string) {
+  return prisma.notification.updateMany({
+    where: { id, userId },
+    data: { isRead: true },
+  });
+}
+
+export async function markAllNotificationsRead(userId: string) {
+  return prisma.notification.updateMany({
+    where: { userId, isRead: false },
+    data: { isRead: true },
+  });
 }

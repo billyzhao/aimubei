@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
+import type { Notification } from "@/lib/types";
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
@@ -93,12 +94,15 @@ export default function Navbar() {
           {status === "loading" ? (
             <div className="w-20 h-8 bg-midnight-700/50 rounded-lg animate-pulse" />
           ) : session?.user ? (
-            <UserMenu
-              user={session.user}
-              open={userMenuOpen}
-              setOpen={setUserMenuOpen}
-              onSignOut={() => signOut({ callbackUrl: "/" })}
-            />
+            <>
+              <NotificationBell />
+              <UserMenu
+                user={session.user}
+                open={userMenuOpen}
+                setOpen={setUserMenuOpen}
+                onSignOut={() => signOut({ callbackUrl: "/" })}
+              />
+            </>
           ) : (
             <>
               <Link href="/login" className="text-mist-300 hover:text-white transition-colors text-sm">
@@ -144,6 +148,7 @@ export default function Navbar() {
             <>
               <div className="border-t border-amethyst-500/10 my-2 pt-2" />
               <MobileNavLink href="/dashboard" label="我的纪念馆" onClick={() => setIsOpen(false)} />
+              <MobileNavLink href="/dashboard#activity" label="最新动态" onClick={() => setIsOpen(false)} />
               <MobileNavLink href="/settings" label="账户设置" onClick={() => setIsOpen(false)} />
               <button
                 onClick={() => {
@@ -179,6 +184,171 @@ export default function Navbar() {
         </div>
       </div>
     </nav>
+  );
+}
+
+function NotificationBell() {
+  const { data: session } = useSession();
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [unread, setUnread] = useState(0);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const fetchNotifs = useCallback(async () => {
+    if (!session?.user) return;
+    try {
+      const res = await fetch("/api/notifications", { cache: "no-store" });
+      if (res.ok) {
+        const data = await res.json();
+        setNotifications(data.notifications || []);
+        setUnread(data.unread || 0);
+      }
+    } catch {
+      /* 静默失败，不影响主流程 */
+    }
+  }, [session?.user]);
+
+  useEffect(() => {
+    fetchNotifs();
+    const id = setInterval(fetchNotifs, 60000);
+    return () => clearInterval(id);
+  }, [fetchNotifs]);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  if (!session?.user) return null;
+
+  const handleNotifClick = async (n: Notification) => {
+    if (!n.isRead) {
+      try {
+        await fetch(`/api/notifications/${n.id}`, { method: "POST" });
+        setNotifications((prev) =>
+          prev.map((x) => (x.id === n.id ? { ...x, isRead: true } : x))
+        );
+        setUnread((u) => Math.max(0, u - 1));
+      } catch {
+        /* ignore */
+      }
+    }
+    setOpen(false);
+    router.push(`/memorial/${n.memorialSlug}`);
+  };
+
+  const markAllRead = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await fetch("/api/notifications/read-all", { method: "POST" });
+      setNotifications((prev) => prev.map((x) => ({ ...x, isRead: true })));
+      setUnread(0);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const fmtTime = (iso: string) => {
+    const diff = Date.now() - new Date(iso).getTime();
+    const min = Math.floor(diff / 60000);
+    if (min < 1) return "刚刚";
+    if (min < 60) return `${min}分钟前`;
+    const hr = Math.floor(min / 60);
+    if (hr < 24) return `${hr}小时前`;
+    const day = Math.floor(hr / 24);
+    if (day < 30) return `${day}天前`;
+    return new Date(iso).toLocaleDateString("zh-CN");
+  };
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        onClick={() => setOpen(!open)}
+        aria-label="通知"
+        className="relative w-9 h-9 rounded-lg flex items-center justify-center text-lg hover:bg-midnight-700/50 transition-colors"
+      >
+        <span className="text-mist-300">🔔</span>
+        {unread > 0 && (
+          <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[11px] font-semibold flex items-center justify-center leading-none">
+            {unread > 99 ? "99+" : unread}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 mt-2 w-80 max-w-[88vw] bg-midnight-800 border border-amethyst-700/30 rounded-xl shadow-2xl overflow-hidden z-50">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-amethyst-700/20">
+              <span className="text-sm font-medium text-white">通知</span>
+              {unread > 0 && (
+                <button
+                  onClick={markAllRead}
+                  className="text-xs text-amethyst-300 hover:text-amethyst-200 transition-colors"
+                >
+                  全部已读
+                </button>
+              )}
+            </div>
+            <div className="max-h-[60vh] overflow-y-auto">
+              {notifications.length === 0 ? (
+                <div className="px-4 py-8 text-center text-sm text-mist-400">
+                  暂无通知
+                </div>
+              ) : (
+                notifications.map((n) => (
+                  <button
+                    key={n.id}
+                    onClick={() => handleNotifClick(n)}
+                    className={`block w-full text-left px-4 py-3 border-b border-amethyst-500/10 last:border-0 transition-colors hover:bg-midnight-700/50 ${
+                      n.isRead ? "" : "bg-amethyst-500/5"
+                    }`}
+                  >
+                    <div className="flex items-start gap-2">
+                      <span className="text-base mt-0.5">
+                        {n.type === "NEW_MESSAGE" ? "💬" : "👣"}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm text-mist-100 truncate">
+                          <span className="text-amethyst-300 font-medium">
+                            {n.type === "NEW_MESSAGE" ? "新留言" : "新访客"}
+                          </span>
+                          · {n.memorialName}
+                        </p>
+                        {n.content && (
+                          <p className="text-xs text-mist-400 mt-0.5 line-clamp-2">
+                            {n.content}
+                          </p>
+                        )}
+                        <p className="text-[11px] text-mist-500 mt-1">
+                          {fmtTime(n.createdAt)}
+                          {!n.isRead && (
+                            <span className="ml-2 inline-block w-1.5 h-1.5 rounded-full bg-amethyst-400 align-middle" />
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+            <Link
+              href="/dashboard#activity"
+              onClick={() => setOpen(false)}
+              className="block text-center text-xs text-mist-400 py-2.5 hover:text-amethyst-300 transition-colors border-t border-amethyst-700/20"
+            >
+              查看全部
+            </Link>
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 

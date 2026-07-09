@@ -18,8 +18,9 @@ function getAvatarEmoji(title: string, traits: string[]): string {
   return "🌿";
 }
 
-export default async function Home() {
-  const featured = await getFeaturedMemorials(3);
+export default async function Home({ searchParams }: { searchParams?: { sort?: string } }) {
+  const sort = (searchParams?.sort as "newest" | "popular") || "popular";
+  const featured = await getFeaturedMemorials(6, sort);
   const totalMemorials = await getPublicMemorialCount();
 
   return (
@@ -40,6 +41,30 @@ export default async function Home() {
               <h2 className="text-3xl md:text-4xl font-serif font-bold mb-4">
                 每个生命，<span className="text-gradient-purple">都值得被记住</span>
               </h2>
+
+              {/* Sort toggle */}
+              <div className="flex items-center justify-center gap-3 mb-8">
+                <Link
+                  href="/?sort=popular"
+                  className={`px-4 py-1.5 rounded-full text-sm transition-colors ${
+                    sort === "popular"
+                      ? "bg-amethyst-500/20 text-amethyst-300 border border-amethyst-500/30"
+                      : "text-mist-400 hover:text-mist-200 border border-transparent"
+                  }`}
+                >
+                  最受欢迎
+                </Link>
+                <Link
+                  href="/?sort=newest"
+                  className={`px-4 py-1.5 rounded-full text-sm transition-colors ${
+                    sort === "newest"
+                      ? "bg-amethyst-500/20 text-amethyst-300 border border-amethyst-500/30"
+                      : "text-mist-400 hover:text-mist-200 border border-transparent"
+                  }`}
+                >
+                  最新创建
+                </Link>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

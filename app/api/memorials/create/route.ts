@@ -22,6 +22,8 @@ const createSchema = z.object({
   })).default([]),
   visibility: z.enum(["PUBLIC", "FAMILY", "PRIVATE"]).default("PUBLIC"),
   accessPassword: z.string().min(4, "密码至少4位").max(64).optional(),
+  relationship: z.string().max(20, "关系类型不合法").optional(),
+  region: z.string().max(20, "地区不合法").optional(),
 });
 
 export async function POST(req: Request) {
@@ -73,6 +75,8 @@ export async function POST(req: Request) {
         visibility: data.visibility,
         isPublic: data.visibility === "PUBLIC",
         accessPassword: accessPasswordHash,
+        relationship: data.relationship || null,
+        region: data.region || null,
         timeline: data.timeline.length
           ? {
               create: data.timeline.map((t, i) => ({

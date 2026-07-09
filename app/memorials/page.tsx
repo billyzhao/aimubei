@@ -31,14 +31,19 @@ function getAvatarEmoji(title: string, traits: string[]): string {
 export default async function MemorialsPage({
   searchParams,
 }: {
-  searchParams?: { q?: string; year?: string };
+  searchParams?: { q?: string; year?: string; sort?: string; relationship?: string; region?: string };
 }) {
   const q = searchParams?.q || "";
   const yearParam = searchParams?.year || "";
   const year = /^\d{4}$/.test(yearParam) ? parseInt(yearParam, 10) : undefined;
+  const sort = (searchParams?.sort as "newest" | "popular" | "tributes") || "newest";
+  const relationship = searchParams?.relationship || "";
+  const region = searchParams?.region || "";
 
   const allMemorials =
-    q || year ? await searchMemorials({ q, year }) : await getAllMemorials();
+    q || year
+      ? await searchMemorials({ q, year, sort, relationship, region })
+      : await getAllMemorials({ sort, relationship, region });
 
   const isSearch = !!(q || year);
 
@@ -60,7 +65,13 @@ export default async function MemorialsPage({
 
           {/* Search Bar */}
           <div className="glass-card p-4 mb-6">
-            <MemorialSearch initialQuery={q} initialYear={yearParam} />
+            <MemorialSearch
+              initialQuery={q}
+              initialYear={yearParam}
+              initialRelationship={relationship}
+              initialRegion={region}
+              initialSort={sort}
+            />
           </div>
 
           {/* Search result banner */}
@@ -142,7 +153,7 @@ export default async function MemorialsPage({
                       <Highlight text={memorial.bio} query={q} />
                     </p>
 
-                    {/* Traits */}
+                    {/* Tags: traits + relationship + region */}
                     <div className="flex flex-wrap gap-1.5 mb-4">
                       {(memorial.traits ?? []).slice(0, 3).map((trait: string) => (
                         <span
@@ -152,6 +163,16 @@ export default async function MemorialsPage({
                           {trait}
                         </span>
                       ))}
+                      {memorial.relationship && (
+                        <span className="px-2 py-0.5 rounded-full bg-gold-500/10 text-xs text-gold-300 border border-gold-500/20">
+                          {memorial.relationship}
+                        </span>
+                      )}
+                      {memorial.region && (
+                        <span className="px-2 py-0.5 rounded-full bg-mist-500/10 text-xs text-mist-300 border border-mist-500/20">
+                          📍 {memorial.region}
+                        </span>
+                      )}
                     </div>
 
                     {/* Stats */}

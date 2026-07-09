@@ -13,6 +13,9 @@ export interface Memorial {
   personality?: string;
   traits?: string[];
   quotes?: string[];
+  // 分类标签：关系类型 / 地区（用于筛选）
+  relationship?: string | null;
+  region?: string | null;
   timeline?: TimelineEvent[];
   photos?: string[];
   tributes?: Tribute[];
@@ -44,4 +47,17 @@ export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   timestamp: string;
+}
+
+// 通知（馆主动态）
+export interface Notification {
+  id: string;
+  userId: string;
+  memorialId: string;
+  memorialSlug: string;
+  memorialName: string;
+  type: "NEW_MESSAGE" | "NEW_VISITOR";
+  content?: string | null;
+  isRead: boolean;
+  createdAt: string;
 }

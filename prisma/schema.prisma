@@ -32,6 +32,7 @@ model User {
   sessions      Session[]
   inviteCodes   InviteCode[] @relation("InviteCreator")
   usedInvites   InviteCode[] @relation("InviteUser")
+  notifications Notification[]
 }
 
 // NextAuth 所需表
@@ -94,6 +95,9 @@ model Memorial {
   // 私密纪念馆访问密码（bcrypt 哈希），仅 PRIVATE 且设置后生效
   accessPassword String?
   isVerified    Boolean         @default(false)
+  // 分类标签：关系类型（父母/配偶/子女/师友/战友/恩师/其他）+ 地区（大区）
+  relationship  String?
+  region        String?
   visitorCount  Int             @default(0)
   tributeCount  Int             @default(0)
   ownerId       String
@@ -107,6 +111,7 @@ model Memorial {
   photos        Photo[]
   chatMessages  ChatMessage[]
   inviteCodes   InviteCode[]
+  notifications Notification[]
   letters       TimeLetter[]
   summaries     ConversationSummary[]
   keyMemories   KeyMemory[]
@@ -235,5 +240,28 @@ model TimeLetter {
 
   memorial Memorial @relation(fields: [memorialId], references: [id], onDelete: Cascade)
 
+  @@index([memorialId])
+}
+
+// ====================================
+// 通知系统（馆主动态提醒）
+// ====================================
+
+model Notification {
+  id           String   @id @default(cuid())
+  userId       String // 接收通知的用户（纪念馆主人）
+  memorialId   String
+  memorialSlug String // 冗余存储 slug，便于直接跳转详情页
+  memorialName String // 冗余存储，便于直接展示
+  // NEW_MESSAGE(新留言) | NEW_VISITOR(新访客，暂未启用)
+  type         String
+  content      String? // 留言内容摘要
+  isRead       Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  memorial Memorial  @relation(fields: [memorialId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
   @@index([memorialId])
 }
