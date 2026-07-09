@@ -1,26 +1,27 @@
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import Link from "next/link";
-import { getFeaturedMemorials, getPublicMemorialCount } from "@/lib/data";
+import type { ReactNode } from "react";
+import MemorialCard from "@/components/MemorialCard";
+import {
+  getFeaturedMemorials,
+  getPublicMemorialCount,
+  getRecommendedMemorials,
+} from "@/lib/data";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 // 首页依赖数据库，禁止构建期静态预渲染（DB 由容器 entrypoint 在运行时初始化）
 export const dynamic = "force-dynamic";
 
-// 头像 emoji 映射
-function getAvatarEmoji(title: string, traits: string[]): string {
-  const text = title + traits.join("");
-  if (/教师|老师|教/.test(text)) return "📖";
-  if (/医|药|诊/.test(text)) return "⚕️";
-  if (/母|妈|奶奶|外婆/.test(text)) return "🥟";
-  if (/父|爸|爷爷|外公/.test(text)) return "🕯️";
-  if (/军|兵|战/.test(text)) return "🎖️";
-  if (/艺|画|音|琴/.test(text)) return "🎨";
-  return "🌿";
-}
-
-export default async function Home({ searchParams }: { searchParams?: { sort?: string } }) {
-  const sort = (searchParams?.sort as "newest" | "popular") || "popular";
-  const featured = await getFeaturedMemorials(6, sort);
+export default async function Home() {
+  const session = await getServerSession(authOptions);
+  const popular = await getFeaturedMemorials(6, "popular");
+  const newest = await getFeaturedMemorials(6, "newest");
+  const recommended =
+    session?.user?.id
+      ? await getRecommendedMemorials(session.user.id, 6)
+      : [];
   const totalMemorials = await getPublicMemorialCount();
 
   return (
@@ -30,56 +31,35 @@ export default async function Home({ searchParams }: { searchParams?: { sort?: s
       {/* Hero Section */}
       <HeroSection totalMemorials={totalMemorials} />
 
-      {/* Featured Memorials */}
-      {featured.length > 0 && (
-        <section className="section-padding">
-          <div className="max-w-6xl mx-auto">
-            <div className="text-center mb-12">
-              <p className="text-amethyst-400 text-sm tracking-widest uppercase mb-3">
-                纪念馆精选
-              </p>
-              <h2 className="text-3xl md:text-4xl font-serif font-bold mb-4">
-                每个生命，<span className="text-gradient-purple">都值得被记住</span>
-              </h2>
+      {/* Hot Rail */}
+      {popular.length > 0 && (
+        <Rail title="🔥 热门纪念馆" subtitle="被祭奠与访问最多的纪念空间" href="/memorials">
+          {popular.map((m) => (
+            <MemorialCard key={m.slug} memorial={m} />
+          ))}
+        </Rail>
+      )}
 
-              {/* Sort toggle */}
-              <div className="flex items-center justify-center gap-3 mb-8">
-                <Link
-                  href="/?sort=popular"
-                  className={`px-4 py-1.5 rounded-full text-sm transition-colors ${
-                    sort === "popular"
-                      ? "bg-amethyst-500/20 text-amethyst-300 border border-amethyst-500/30"
-                      : "text-mist-400 hover:text-mist-200 border border-transparent"
-                  }`}
-                >
-                  最受欢迎
-                </Link>
-                <Link
-                  href="/?sort=newest"
-                  className={`px-4 py-1.5 rounded-full text-sm transition-colors ${
-                    sort === "newest"
-                      ? "bg-amethyst-500/20 text-amethyst-300 border border-amethyst-500/30"
-                      : "text-mist-400 hover:text-mist-200 border border-transparent"
-                  }`}
-                >
-                  最新创建
-                </Link>
-              </div>
-            </div>
+      {/* Newest Rail */}
+      {newest.length > 0 && (
+        <Rail title="🆕 最近新增" subtitle="新近创建的纪念馆" href="/memorials?sort=newest">
+          {newest.map((m) => (
+            <MemorialCard key={m.slug} memorial={m} />
+          ))}
+        </Rail>
+      )}
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {featured.map((m) => (
-                <FeaturedCard key={m.slug} memorial={m} />
-              ))}
-            </div>
-
-            <div className="text-center mt-10">
-              <Link href="/memorials" className="btn-secondary text-base px-8 py-4">
-                查看全部纪念馆
-              </Link>
-            </div>
-          </div>
-        </section>
+      {/* Personalized Recommendation Rail (logged in only) */}
+      {recommended.length > 0 && (
+        <Rail
+          title="💜 为你推荐"
+          subtitle="根据你创建的纪念馆，也许你会想看看这些"
+          href="/memorials"
+        >
+          {recommended.map((m) => (
+            <MemorialCard key={m.slug} memorial={m} />
+          ))}
+        </Rail>
       )}
 
       {/* Features Section */}
@@ -175,6 +155,40 @@ export default async function Home({ searchParams }: { searchParams?: { sort?: s
 
 // ---------- Sub-components ----------
 
+function Rail({
+  title,
+  subtitle,
+  href,
+  children,
+}: {
+  title: string;
+  subtitle: string;
+  href: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="section-padding">
+      <div className="max-w-6xl mx-auto">
+        <div className="flex items-end justify-between mb-8">
+          <div>
+            <h2 className="text-2xl md:text-3xl font-serif font-bold">{title}</h2>
+            <p className="text-sm text-mist-400 mt-1">{subtitle}</p>
+          </div>
+          <Link
+            href={href}
+            className="text-sm text-amethyst-400 hover:text-amethyst-300 whitespace-nowrap"
+          >
+            查看全部 →
+          </Link>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {children}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function HeroSection({ totalMemorials }: { totalMemorials: number }) {
   return (
     <section className="relative flex-1 flex items-center justify-center pt-16 overflow-hidden min-h-[80vh]">
@@ -231,36 +245,6 @@ function HeroSection({ totalMemorials }: { totalMemorials: number }) {
         </div>
       </div>
     </section>
-  );
-}
-
-function FeaturedCard({ memorial }: { memorial: any }) {
-  const bio = memorial.bio || "";
-  const bioShort = bio.length > 60 ? bio.slice(0, 60) + "…" : bio;
-
-  return (
-    <Link
-      href={`/memorial/${memorial.slug}`}
-      className="glass-card p-6 hover:glow-border transition-all duration-300 group"
-    >
-      <div className="w-full aspect-[4/3] rounded-xl bg-gradient-to-br from-amethyst-600/20 to-midnight-800 flex items-center justify-center text-6xl mb-4 group-hover:scale-105 transition-transform">
-        {memorial.avatar ? (
-          <img src={memorial.avatar} alt={memorial.name} className="w-full h-full object-cover rounded-xl" />
-        ) : (
-          getAvatarEmoji(memorial.title, [])
-        )}
-      </div>
-      <h3 className="text-lg font-semibold text-white mb-1">{memorial.name}</h3>
-      <p className="text-sm text-mist-400 mb-3">{memorial.title} · {memorial.birthYear}—{memorial.deathYear}</p>
-      <p className="text-xs text-mist-400 leading-relaxed overflow-hidden" style={{ maxHeight: "2.6em" }}>
-        {bioShort}
-      </p>
-      <div className="mt-4 flex items-center gap-4 text-xs text-mist-400">
-        <span>👁️ {memorial.visitorCount.toLocaleString()}</span>
-        <span>🌸 {memorial.tributeCount.toLocaleString()}</span>
-        {memorial.isVerified && <span className="text-amethyst-400">✓ 已认证</span>}
-      </div>
-    </Link>
   );
 }
 

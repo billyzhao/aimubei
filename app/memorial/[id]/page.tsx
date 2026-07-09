@@ -14,7 +14,8 @@ import ParticleBackground from "@/components/ParticleBackground";
 import VisitorStats from "@/components/VisitorStats";
 import ShareButton from "@/components/ShareButton";
 import AccessDenied from "@/components/AccessDenied";
-import { getMemorialForView, getAllMemorials } from "@/lib/data";
+import MemorialCard from "@/components/MemorialCard";
+import { getMemorialForView, getRelatedMemorials } from "@/lib/data";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import type { Memorial } from "@/lib/types";
@@ -126,9 +127,8 @@ export default async function MemorialPage({
     notFound();
   }
 
-  // 获取其他纪念馆
-  const allMemorials = await getAllMemorials();
-  const otherMemorials = allMemorials.filter((m) => m.id !== memorial.id).slice(0, 3);
+  // 相关纪念馆（基于共享标签相似度）
+  const relatedMemorials = await getRelatedMemorials(memorial, 4);
 
   // 统计各类祭奠数量
   const tributes = memorial.tributes || [];
@@ -366,32 +366,19 @@ export default async function MemorialPage({
           </AnimatedSection>
         </div>
 
-        {/* Other Memorials */}
-        {otherMemorials.length > 0 && (
+        {/* Related Memorials */}
+        {relatedMemorials.length > 0 && (
           <div className="mt-16">
             <AnimatedSection>
-              <h2 className="text-xl font-serif font-semibold text-white mb-6 text-center">
-                其他纪念馆
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {otherMemorials.map((m) => (
-                  <Link
-                    key={m.id}
-                    href={`/memorial/${m.id}`}
-                    className="glass-card p-5 hover:glow-border transition-all duration-300 group"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-midnight-700 to-midnight-800 flex items-center justify-center text-2xl">
-                        {getAvatarEmoji(m)}
-                      </div>
-                      <div>
-                        <div className="text-sm font-semibold text-white group-hover:text-amethyst-400 transition-colors">
-                          {m.name}
-                        </div>
-                        <div className="text-xs text-mist-400">{m.title}</div>
-                      </div>
-                    </div>
-                  </Link>
+              <div className="text-center mb-8">
+                <h2 className="text-2xl md:text-3xl font-serif font-bold">
+                  <span className="text-gradient-purple">相关纪念馆</span>
+                </h2>
+                <p className="text-sm text-mist-400 mt-1">基于相同的关系与地区，也许你还想缅怀他们</p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                {relatedMemorials.map((m) => (
+                  <MemorialCard key={m.slug} memorial={m} />
                 ))}
               </div>
             </AnimatedSection>

@@ -414,6 +414,75 @@ export async function getPublicMemorialCount(): Promise<number> {
 }
 
 // ====================================
+// 推荐与发现（C3）
+// ====================================
+
+// 相关纪念馆：基于共享标签（关系类型 + 地区 + 性格标签）相似度打分
+// 优先返回有相关度的馆，不足时用热门 PUBLIC 馆补齐
+export async function getRelatedMemorials(
+  current: { slug: string; relationship?: string | null; region?: string | null; traits?: string[] },
+  limit = 4
+): Promise<Memorial[]> {
+  const candidates = await prisma.memorial.findMany({
+    where: { visibility: "PUBLIC", slug: { not: current.slug } },
+    include: { _count: { select: { tributes: true, photos: true } } },
+    orderBy: [{ tributeCount: "desc" }, { visitorCount: "desc" }],
+    take: 50,
+  });
+
+  const curRel = current.relationship || null;
+  const curRegion = current.region || null;
+  const curTraits = new Set((current.traits || []).map((t) => t.toLowerCase()));
+
+  const scored = candidates.map((m) => {
+    let s = 0;
+    if (curRel && m.relationship === curRel) s += 3;
+    if (curRegion && m.region === curRegion) s += 2;
+    const mTraits = safeParseArray(m.traits).map((t) => t.toLowerCase());
+    for (const t of mTraits) if (curTraits.has(t)) s += 1;
+    return { m: transformMemorial(m), s };
+  });
+
+  scored.sort((a, b) => b.s - a.s || b.m.visitorCount - a.m.visitorCount);
+  const withScore = scored.filter((x) => x.s > 0).map((x) => x.m);
+  const filler = scored.filter((x) => x.s === 0).map((x) => x.m);
+  return [...withScore, ...filler].slice(0, limit);
+}
+
+// 个性化推荐：登录用户基于其拥有的纪念馆标签，推荐相似的 PUBLIC 馆（排除自己拥有的）
+// 无自有馆（新用户）时降级为热门榜
+export async function getRecommendedMemorials(userId: string, limit = 4): Promise<Memorial[]> {
+  const owned = await getMemorialsByOwner(userId);
+  if (owned.length === 0) {
+    return getFeaturedMemorials(limit, "popular");
+  }
+
+  const ownedSlugs = new Set(owned.map((m) => m.slug));
+  const relSet = new Set(owned.map((m) => m.relationship).filter(Boolean) as string[]);
+  const regionSet = new Set(owned.map((m) => m.region).filter(Boolean) as string[]);
+
+  const candidates = await prisma.memorial.findMany({
+    where: { visibility: "PUBLIC", slug: { notIn: Array.from(ownedSlugs) } },
+    include: { _count: { select: { tributes: true, photos: true } } },
+    orderBy: [{ tributeCount: "desc" }, { visitorCount: "desc" }],
+    take: 50,
+  });
+
+  const scored = candidates.map((m) => {
+    let s = 0;
+    if (relSet.has(m.relationship || "")) s += 3;
+    if (regionSet.has(m.region || "")) s += 2;
+    return { m: transformMemorial(m), s };
+  });
+
+  scored.sort((a, b) => b.s - a.s || b.m.visitorCount - a.m.visitorCount);
+  const withScore = scored.filter((x) => x.s > 0).map((x) => x.m);
+  const filler = scored.filter((x) => x.s === 0).map((x) => x.m);
+  return [...withScore, ...filler].slice(0, limit);
+}
+
+
+// ====================================
 // 祭奠互动
 // ====================================
 
