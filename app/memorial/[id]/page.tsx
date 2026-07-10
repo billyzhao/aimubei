@@ -15,7 +15,8 @@ import VisitorStats from "@/components/VisitorStats";
 import ShareButton from "@/components/ShareButton";
 import AccessDenied from "@/components/AccessDenied";
 import MemorialCard from "@/components/MemorialCard";
-import { getMemorialForView, getRelatedMemorials } from "@/lib/data";
+import FamilyTree from "@/components/FamilyTree";
+import { getMemorialForView, getRelatedMemorials, buildFamilyTree } from "@/lib/data";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import type { Memorial } from "@/lib/types";
@@ -129,6 +130,9 @@ export default async function MemorialPage({
 
   // 相关纪念馆（基于共享标签相似度）
   const relatedMemorials = await getRelatedMemorials(memorial, 4);
+
+  // 家族树（D2）
+  const familyTree = await buildFamilyTree(memorial.id);
 
   // 统计各类祭奠数量
   const tributes = memorial.tributes || [];
@@ -364,6 +368,19 @@ export default async function MemorialPage({
               memorialName={memorial.name}
             />
           </AnimatedSection>
+        </div>
+
+        {/* Family Tree (D2) */}
+        <div className="mt-16">
+          <AnimatedSection>
+            <div className="text-center mb-8">
+              <h2 className="text-2xl md:text-3xl font-serif font-bold mb-2">
+                <span className="text-gradient-purple">家族树</span>
+              </h2>
+              <p className="text-sm text-mist-400 mt-1">几代人的记忆在此相连，点击即可前往亲人的纪念馆</p>
+            </div>
+          </AnimatedSection>
+          <FamilyTree tree={familyTree} />
         </div>
 
         {/* Related Memorials */}

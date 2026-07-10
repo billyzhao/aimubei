@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import type { FamilyRelationView } from "@/lib/data";
 
 interface TimelineEventItem {
   id: string;
@@ -44,6 +45,7 @@ interface MemorialEditData {
   timeline: TimelineEventItem[];
   photos: PhotoItem[];
   inviteCodes: InviteCodeItem[];
+  family: FamilyRelationView[];
 }
 
 export default function EditMemorialClient({
@@ -53,7 +55,7 @@ export default function EditMemorialClient({
 }) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<
-    "basic" | "timeline" | "photos" | "permissions" | "danger"
+    "basic" | "timeline" | "photos" | "family" | "permissions" | "danger"
   >("basic");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -89,6 +91,23 @@ export default function EditMemorialClient({
   const [accessPassword, setAccessPassword] = useState("");
   const [inviteCodes, setInviteCodes] = useState<InviteCodeItem[]>(memorial.inviteCodes);
   const [generating, setGenerating] = useState(false);
+
+  // Family relations state
+  const [family, setFamily] = useState<FamilyRelationView[]>(memorial.family || []);
+  const [relSearch, setRelSearch] = useState("");
+  const [relResults, setRelResults] = useState<
+    { id: string; name: string; title: string; avatar: string | null }[]
+  >([]);
+  const [relSearching, setRelSearching] = useState(false);
+  const [relType, setRelType] = useState<FamilyRelationView["type"]>("PARENT");
+  const [relNote, setRelNote] = useState("");
+
+  const REL_LABELS: Record<FamilyRelationView["type"], string> = {
+    PARENT: "父母",
+    CHILD: "子女",
+    SPOUSE: "配偶",
+    SIBLING: "兄弟姐妹",
+  };
 
   const traitOptions = [
     "温和", "幽默", "严肃", "开朗", "内向", "热情",
@@ -290,10 +309,80 @@ export default function EditMemorialClient({
     }
   };
 
+  // === Family relations ===
+  const handleRelSearch = async (q: string) => {
+    setRelSearch(q);
+    if (!q.trim()) {
+      setRelResults([]);
+      return;
+    }
+    setRelSearching(true);
+    try {
+      const res = await fetch(`/api/memorials?q=${encodeURIComponent(q)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setRelResults(
+          data.filter((m: any) => m.id !== memorial.slug).slice(0, 8)
+        );
+      }
+    } catch {
+      // ignore
+    } finally {
+      setRelSearching(false);
+    }
+  };
+
+  const handleAddRelation = async (relatedSlug: string) => {
+    try {
+      const res = await fetch(`/api/memorial/${memorial.id}/family`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          relatedSlug,
+          type: relType,
+          note: relNote || undefined,
+        }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setMessage(d.error || "添加失败");
+        return;
+      }
+      const list = await fetch(`/api/memorial/${memorial.id}/family`).then((r) =>
+        r.json()
+      );
+      setFamily(list);
+      setRelSearch("");
+      setRelResults([]);
+      setRelNote("");
+      setMessage("✓ 家族关系已添加");
+      setTimeout(() => setMessage(""), 3000);
+    } catch {
+      setMessage("网络错误");
+    }
+  };
+
+  const handleDeleteRelation = async (relId: string) => {
+    if (!confirm("确定删除这条家族关系？")) return;
+    try {
+      const res = await fetch(`/api/memorial/${memorial.id}/family/${relId}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        setFamily((prev) => prev.filter((r) => r.id !== relId));
+      } else {
+        setMessage("删除失败");
+      }
+    } catch {
+      setMessage("删除失败");
+    }
+  };
+
   const tabs = [
     { key: "basic", label: "基本信息", icon: "📝" },
     { key: "timeline", label: "时间线", icon: "📅" },
     { key: "photos", label: "照片管理", icon: "📸" },
+    { key: "family", label: "家族关系", icon: "🌳" },
     { key: "permissions", label: "权限管理", icon: "🔒" },
     { key: "danger", label: "危险区", icon: "⚠️" },
   ] as const;
@@ -698,6 +787,130 @@ export default function EditMemorialClient({
                 )}
               </div>
             )}
+          </div>
+        )}
+
+        {/* === Family Tab === */}
+        {activeTab === "family" && (
+          <div className="space-y-6 animate-fade-in">
+            {/* Add relation */}
+            <div className="glass-card p-6">
+              <h3 className="text-lg font-semibold text-white mb-4">添加家族关系</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+                <input
+                  type="text"
+                  value={relSearch}
+                  onChange={(e) => handleRelSearch(e.target.value)}
+                  placeholder="搜索纪念馆（姓名/称谓）"
+                  className="md:col-span-2 bg-midnight-700/60 text-mist-200 rounded-xl px-3 py-2 text-sm border border-amethyst-500/15 focus:outline-none focus:border-amethyst-500/40"
+                />
+                <select
+                  value={relType}
+                  onChange={(e) =>
+                    setRelType(e.target.value as FamilyRelationView["type"])
+                  }
+                  className="bg-midnight-700/60 text-mist-200 rounded-xl px-3 py-2 text-sm border border-amethyst-500/15 focus:outline-none focus:border-amethyst-500/40"
+                >
+                  {(["PARENT", "CHILD", "SPOUSE", "SIBLING"] as const).map((t) => (
+                    <option key={t} value={t}>
+                      {REL_LABELS[t]}（本馆视角）
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <input
+                type="text"
+                value={relNote}
+                onChange={(e) => setRelNote(e.target.value)}
+                placeholder="备注（可选，如「长兄」「继母」）"
+                className="w-full bg-midnight-700/60 text-mist-200 rounded-xl px-3 py-2 text-sm border border-amethyst-500/15 focus:outline-none focus:border-amethyst-500/40 mb-3"
+              />
+              {relSearching && <p className="text-sm text-mist-400">搜索中...</p>}
+              {!relSearching && relResults.length > 0 && (
+                <div className="space-y-2">
+                  {relResults.map((m) => (
+                    <div
+                      key={m.id}
+                      className="flex items-center gap-3 p-3 rounded-xl bg-midnight-700/40 border border-amethyst-500/10"
+                    >
+                      <div className="w-9 h-9 rounded-lg bg-midnight-800 border border-amethyst-500/20 flex items-center justify-center text-lg overflow-hidden flex-shrink-0">
+                        {m.avatar ? (
+                          <img src={m.avatar} alt={m.name} className="w-full h-full object-cover" />
+                        ) : (
+                          "🌿"
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm text-white truncate">{m.name}</div>
+                        <div className="text-xs text-mist-400 truncate">{m.title}</div>
+                      </div>
+                      <button
+                        onClick={() => handleAddRelation(m.id)}
+                        className="btn-secondary text-xs"
+                      >
+                        + 添加为{REL_LABELS[relType]}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {!relSearching && relSearch && relResults.length === 0 && (
+                <p className="text-sm text-mist-400">未找到匹配的纪念馆</p>
+              )}
+            </div>
+
+            {/* Current relations */}
+            <div className="glass-card p-6">
+              <h3 className="text-lg font-semibold text-white mb-4">
+                当前家族关系（{family.length}）
+              </h3>
+              {family.length > 0 ? (
+                <div className="space-y-2">
+                  {family.map((r) => (
+                    <div
+                      key={r.id}
+                      className="flex items-center gap-3 p-3 rounded-xl bg-midnight-700/40 border border-amethyst-500/10"
+                    >
+                      <div className="w-9 h-9 rounded-lg bg-midnight-800 border border-amethyst-500/20 flex items-center justify-center text-lg overflow-hidden flex-shrink-0">
+                        {r.otherAvatar ? (
+                          <img src={r.otherAvatar} alt={r.otherName} className="w-full h-full object-cover" />
+                        ) : (
+                          "🌿"
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm text-white truncate">
+                          {r.otherName}
+                          <span className="text-xs text-amethyst-300 ml-1">
+                            · {REL_LABELS[r.type]}
+                          </span>
+                        </div>
+                        <div className="text-xs text-mist-400 truncate">
+                          {r.otherTitle}
+                          {r.note ? ` · ${r.note}` : ""}
+                        </div>
+                      </div>
+                      <Link
+                        href={`/memorial/${r.otherSlug}`}
+                        className="text-xs text-amethyst-400 hover:text-amethyst-300"
+                      >
+                        查看
+                      </Link>
+                      <button
+                        onClick={() => handleDeleteRelation(r.id)}
+                        className="text-rose-400 hover:text-rose-300 text-xs flex-shrink-0"
+                      >
+                        删除
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-mist-400 text-center py-4">
+                  暂无家族关系，搜索并添加第一位亲人吧
+                </p>
+              )}
+            </div>
           </div>
         )}
 

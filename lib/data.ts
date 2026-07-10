@@ -321,6 +321,7 @@ export async function getMemorialForEdit(slug: string, userId: string) {
       usedById: c.usedById,
       createdAt: c.createdAt.toISOString(),
     })),
+    family: await getFamilyRelations(memorial.id),
   };
 }
 
@@ -479,6 +480,205 @@ export async function getRecommendedMemorials(userId: string, limit = 4): Promis
   const withScore = scored.filter((x) => x.s > 0).map((x) => x.m);
   const filler = scored.filter((x) => x.s === 0).map((x) => x.m);
   return [...withScore, ...filler].slice(0, limit);
+}
+
+// ====================================
+// 家族关系（D2）
+// ====================================
+
+export interface FamilyNode {
+  id: string;
+  slug: string;
+  name: string;
+  title: string;
+  avatar: string | null;
+  relationship: string | null;
+  birthYear: number;
+  deathYear: number;
+  note?: string | null;
+}
+
+export interface FamilyTree {
+  parents: FamilyNode[];
+  spouses: FamilyNode[];
+  siblings: FamilyNode[];
+  children: FamilyNode[];
+}
+
+// 编辑页用的「以本纪念馆为视角」的关系视图
+export interface FamilyRelationView {
+  id: string;
+  otherId: string;
+  otherSlug: string;
+  otherName: string;
+  otherTitle: string;
+  otherAvatar: string | null;
+  type: "PARENT" | "CHILD" | "SPOUSE" | "SIBLING"; // 从本纪念馆视角
+  note: string | null;
+}
+
+const FAMILY_TYPES = ["PARENT", "CHILD", "SPOUSE", "SIBLING"] as const;
+
+function invertType(t: string): string {
+  if (t === "PARENT") return "CHILD";
+  if (t === "CHILD") return "PARENT";
+  return t; // SPOUSE / SIBLING 对称
+}
+
+function toFamilyNode(m: any, note?: string | null): FamilyNode {
+  return {
+    id: m.id,
+    slug: m.slug,
+    name: m.name,
+    title: m.title,
+    avatar: m.avatar,
+    relationship: m.relationship,
+    birthYear: m.birthYear,
+    deathYear: m.deathYear,
+    note,
+  };
+}
+
+// 取得以本纪念馆为视角的关系列表（双向合并）
+export async function getFamilyRelations(
+  memorialId: string
+): Promise<FamilyRelationView[]> {
+  const rels = await prisma.familyRelation.findMany({
+    where: { OR: [{ memorialId }, { relatedMemorialId: memorialId }] },
+    include: {
+      memorial: {
+        select: { id: true, slug: true, name: true, title: true, avatar: true },
+      },
+      related: {
+        select: { id: true, slug: true, name: true, title: true, avatar: true },
+      },
+    },
+  });
+
+  const out: FamilyRelationView[] = [];
+  for (const r of rels) {
+    let other: any;
+    let type: FamilyRelationView["type"];
+    if (r.memorialId === memorialId) {
+      other = r.related;
+      type = r.type as FamilyRelationView["type"];
+    } else {
+      other = r.memorial;
+      type = invertType(r.type) as FamilyRelationView["type"];
+    }
+    out.push({
+      id: r.id,
+      otherId: other.id,
+      otherSlug: other.slug,
+      otherName: other.name,
+      otherTitle: other.title,
+      otherAvatar: other.avatar,
+      type,
+      note: r.note,
+    });
+  }
+  return out;
+}
+
+// 构建家族树（父母 / 配偶 / 兄弟姐妹 / 子女）
+export async function buildFamilyTree(memorialId: string): Promise<FamilyTree> {
+  const rels = await prisma.familyRelation.findMany({
+    where: { OR: [{ memorialId }, { relatedMemorialId: memorialId }] },
+    include: {
+      memorial: {
+        select: {
+          id: true, slug: true, name: true, title: true, avatar: true,
+          relationship: true, birthYear: true, deathYear: true,
+        },
+      },
+      related: {
+        select: {
+          id: true, slug: true, name: true, title: true, avatar: true,
+          relationship: true, birthYear: true, deathYear: true,
+        },
+      },
+    },
+  });
+
+  const tree: FamilyTree = { parents: [], spouses: [], siblings: [], children: [] };
+  for (const r of rels) {
+    let other: any;
+    let type: string;
+    if (r.memorialId === memorialId) {
+      other = r.related;
+      type = r.type;
+    } else {
+      other = r.memorial;
+      type = invertType(r.type);
+    }
+    const node = toFamilyNode(other, r.note);
+    if (type === "PARENT") tree.parents.push(node);
+    else if (type === "CHILD") tree.children.push(node);
+    else if (type === "SPOUSE") tree.spouses.push(node);
+    else if (type === "SIBLING") tree.siblings.push(node);
+  }
+  return tree;
+}
+
+// 添加家族关系（馆主鉴权）
+export async function addFamilyRelation(
+  ownerId: string,
+  memorialId: string,
+  relatedSlug: string,
+  type: string,
+  note?: string
+) {
+  const memorial = await prisma.memorial.findUnique({
+    where: { id: memorialId },
+    select: { ownerId: true },
+  });
+  if (!memorial || memorial.ownerId !== ownerId) {
+    throw new Error("无权操作该纪念馆");
+  }
+  const related = await prisma.memorial.findUnique({
+    where: { slug: relatedSlug },
+    select: { id: true },
+  });
+  if (!related) throw new Error("关联的纪念馆不存在");
+  if (related.id === memorialId) throw new Error("不能与自己建立关系");
+  if (!(FAMILY_TYPES as readonly string[]).includes(type)) {
+    throw new Error("关系类型无效");
+  }
+
+  return prisma.familyRelation.upsert({
+    where: {
+      memorialId_relatedMemorialId_type: {
+        memorialId,
+        relatedMemorialId: related.id,
+        type,
+      },
+    },
+    update: { note: note || null },
+    create: {
+      memorialId,
+      relatedMemorialId: related.id,
+      type,
+      note: note || null,
+    },
+  });
+}
+
+// 删除家族关系（馆主鉴权）
+export async function removeFamilyRelation(
+  ownerId: string,
+  memorialId: string,
+  relId: string
+) {
+  const rel = await prisma.familyRelation.findUnique({ where: { id: relId } });
+  if (!rel) return;
+  const memorial = await prisma.memorial.findUnique({
+    where: { id: rel.memorialId },
+    select: { ownerId: true },
+  });
+  if (!memorial || memorial.ownerId !== ownerId) {
+    throw new Error("无权操作该纪念馆");
+  }
+  await prisma.familyRelation.delete({ where: { id: relId } });
 }
 
 
