@@ -540,9 +540,20 @@ function toFamilyNode(m: any, note?: string | null): FamilyNode {
 }
 
 // 取得以本纪念馆为视角的关系列表（双向合并）
+// 将 id 或 slug 解析为真实纪念馆 cuid（兼容详情页传入 slug 的情况）
+async function resolveMemorialId(idOrSlug: string): Promise<string | null> {
+  const m = await prisma.memorial.findFirst({
+    where: { OR: [{ id: idOrSlug }, { slug: idOrSlug }] },
+    select: { id: true },
+  });
+  return m?.id || null;
+}
+
 export async function getFamilyRelations(
-  memorialId: string
+  idOrSlug: string
 ): Promise<FamilyRelationView[]> {
+  const memorialId = await resolveMemorialId(idOrSlug);
+  if (!memorialId) return [];
   const rels = await prisma.familyRelation.findMany({
     where: { OR: [{ memorialId }, { relatedMemorialId: memorialId }] },
     include: {
@@ -581,7 +592,10 @@ export async function getFamilyRelations(
 }
 
 // 构建家族树（父母 / 配偶 / 兄弟姐妹 / 子女）
-export async function buildFamilyTree(memorialId: string): Promise<FamilyTree> {
+export async function buildFamilyTree(idOrSlug: string): Promise<FamilyTree> {
+  const memorialId = await resolveMemorialId(idOrSlug);
+  const empty: FamilyTree = { parents: [], spouses: [], siblings: [], children: [] };
+  if (!memorialId) return empty;
   const rels = await prisma.familyRelation.findMany({
     where: { OR: [{ memorialId }, { relatedMemorialId: memorialId }] },
     include: {
@@ -679,6 +693,210 @@ export async function removeFamilyRelation(
     throw new Error("无权操作该纪念馆");
   }
   await prisma.familyRelation.delete({ where: { id: relId } });
+}
+
+
+// ====================================
+// 记忆胶囊（定时解锁 + 解锁通知）
+// ====================================
+
+export type CapsuleVisibility = "PRIVATE" | "FAMILY" | "PUBLIC";
+const CAPSULE_VISIBILITIES: readonly CapsuleVisibility[] = [
+  "PRIVATE",
+  "FAMILY",
+  "PUBLIC",
+];
+
+export interface MemoryCapsuleView {
+  id: string;
+  title: string;
+  // 锁定时 content 为 null（内容封存不可见）
+  content: string | null;
+  creatorName: string;
+  visibility: CapsuleVisibility;
+  unlockAt: string;
+  isUnlocked: boolean; // 是否已到期解锁
+  isOwner: boolean; // 当前查看者是否为创建者/馆主
+  createdAt: string;
+}
+
+// 创建记忆胶囊（仅馆主）
+export async function createMemoryCapsule(
+  userId: string,
+  userName: string,
+  idOrSlug: string,
+  data: {
+    title: string;
+    content: string;
+    unlockAt: Date;
+    visibility?: string;
+  }
+) {
+  const memorial = await prisma.memorial.findFirst({
+    where: { OR: [{ id: idOrSlug }, { slug: idOrSlug }] },
+    select: { id: true, ownerId: true },
+  });
+  if (!memorial) throw new Error("纪念馆不存在");
+  if (memorial.ownerId !== userId) throw new Error("无权操作该纪念馆");
+
+  const title = data.title?.trim();
+  const content = data.content?.trim();
+  if (!title) throw new Error("请填写胶囊标题");
+  if (!content || content.length < 5) throw new Error("胶囊内容至少 5 字");
+  if (title.length > 60) throw new Error("标题不能超过 60 字");
+  if (content.length > 5000) throw new Error("内容不能超过 5000 字");
+  if (!(data.unlockAt instanceof Date) || isNaN(data.unlockAt.getTime())) {
+    throw new Error("解锁日期无效");
+  }
+  const visibility: CapsuleVisibility = CAPSULE_VISIBILITIES.includes(
+    data.visibility as CapsuleVisibility
+  )
+    ? (data.visibility as CapsuleVisibility)
+    : "FAMILY";
+
+  // 到期日已过则视为立即解锁
+  const alreadyUnlocked = data.unlockAt.getTime() <= Date.now();
+
+  return prisma.memoryCapsule.create({
+    data: {
+      memorialId: memorial.id,
+      creatorId: userId,
+      creatorName: userName,
+      title,
+      content,
+      unlockAt: data.unlockAt,
+      visibility,
+      isUnlocked: alreadyUnlocked,
+      notified: alreadyUnlocked, // 创建即解锁的无需再通知
+    },
+  });
+}
+
+// 惰性解锁：将到期未标记的胶囊置为已解锁，并给馆主发通知（仅一次）
+async function unlockDueCapsules(memorialId: string) {
+  const due = await prisma.memoryCapsule.findMany({
+    where: {
+      memorialId,
+      isUnlocked: false,
+      unlockAt: { lte: new Date() },
+    },
+  });
+  if (due.length === 0) return;
+
+  const memorial = await prisma.memorial.findUnique({
+    where: { id: memorialId },
+    select: { id: true, slug: true, name: true, ownerId: true },
+  });
+
+  for (const c of due) {
+    await prisma.memoryCapsule.update({
+      where: { id: c.id },
+      data: { isUnlocked: true, notified: true },
+    });
+    if (memorial && !c.notified) {
+      try {
+        await createNotification({
+          userId: memorial.ownerId,
+          memorialId: memorial.id,
+          memorialSlug: memorial.slug,
+          memorialName: memorial.name,
+          type: "CAPSULE_UNLOCKED",
+          content: `记忆胶囊「${c.title}」已到期解锁`,
+        });
+      } catch {
+        // 通知失败不影响解锁
+      }
+    }
+  }
+}
+
+// 列出记忆胶囊（惰性解锁 + 可见性过滤 + 锁定内容遮罩）
+export async function listMemoryCapsules(
+  idOrSlug: string,
+  viewer: { userId?: string | null } | null
+): Promise<MemoryCapsuleView[]> {
+  const memorial = await prisma.memorial.findFirst({
+    where: { OR: [{ id: idOrSlug }, { slug: idOrSlug }] },
+    select: { id: true, ownerId: true },
+  });
+  if (!memorial) return [];
+
+  await unlockDueCapsules(memorial.id);
+
+  const isOwner = !!(viewer?.userId && viewer.userId === memorial.ownerId);
+  const isLoggedIn = !!viewer?.userId;
+
+  const capsules = await prisma.memoryCapsule.findMany({
+    where: { memorialId: memorial.id },
+    orderBy: { unlockAt: "asc" },
+  });
+
+  const out: MemoryCapsuleView[] = [];
+  for (const c of capsules) {
+    // 可见性过滤
+    if (c.visibility === "PRIVATE" && !isOwner) continue;
+    if (c.visibility === "FAMILY" && !isOwner && !isLoggedIn) continue;
+    // PUBLIC：所有能访问本馆的人可见
+
+    out.push({
+      id: c.id,
+      // 锁定态遮罩内容（含馆主，保持"封存"仪式感）
+      content: c.isUnlocked ? c.content : null,
+      title: c.title,
+      creatorName: c.creatorName,
+      visibility: c.visibility as CapsuleVisibility,
+      unlockAt: c.unlockAt.toISOString(),
+      isUnlocked: c.isUnlocked,
+      isOwner,
+      createdAt: c.createdAt.toISOString(),
+    });
+  }
+  return out;
+}
+
+// 删除记忆胶囊（仅创建者/馆主）
+export async function deleteMemoryCapsule(userId: string, capsuleId: string) {
+  const capsule = await prisma.memoryCapsule.findUnique({
+    where: { id: capsuleId },
+    select: { id: true, creatorId: true, memorialId: true },
+  });
+  if (!capsule) return;
+  const memorial = await prisma.memorial.findUnique({
+    where: { id: capsule.memorialId },
+    select: { ownerId: true },
+  });
+  const allowed =
+    capsule.creatorId === userId || memorial?.ownerId === userId;
+  if (!allowed) throw new Error("无权删除该胶囊");
+  await prisma.memoryCapsule.delete({ where: { id: capsuleId } });
+}
+
+// 惰性投递时光信件：到期的 PENDING 信件 → 生成 AI 回信并置为 REPLIED
+export async function deliverDueLetters(memorialId: string) {
+  const due = await prisma.timeLetter.findMany({
+    where: {
+      memorialId,
+      status: "PENDING",
+      deliverAt: { lte: new Date() },
+    },
+  });
+  if (due.length === 0) return;
+
+  const memorial = await prisma.memorial.findUnique({
+    where: { id: memorialId },
+    select: { personality: true },
+  });
+
+  for (const letter of due) {
+    const aiReply = generateAIReply(
+      letter.content,
+      memorial?.personality || undefined
+    );
+    await prisma.timeLetter.update({
+      where: { id: letter.id },
+      data: { status: "REPLIED", aiReply },
+    });
+  }
 }
 
 
@@ -853,7 +1071,7 @@ export async function createNotification(data: {
   memorialId: string;
   memorialSlug: string;
   memorialName: string;
-  type: "NEW_MESSAGE" | "NEW_VISITOR";
+  type: "NEW_MESSAGE" | "NEW_VISITOR" | "CAPSULE_UNLOCKED";
   content?: string | null;
 }) {
   return prisma.notification.create({
@@ -880,7 +1098,7 @@ export async function getNotificationsByUser(userId: string, limit = 20) {
     memorialId: n.memorialId,
     memorialSlug: n.memorialSlug,
     memorialName: n.memorialName,
-    type: n.type as "NEW_MESSAGE" | "NEW_VISITOR",
+    type: n.type as "NEW_MESSAGE" | "NEW_VISITOR" | "CAPSULE_UNLOCKED",
     content: n.content,
     isRead: n.isRead,
     createdAt: n.createdAt.toISOString(),

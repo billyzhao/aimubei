@@ -117,6 +117,7 @@ model Memorial {
   keyMemories   KeyMemory[]
   familyOut     FamilyRelation[] @relation("FamilyRelationOut")
   familyIn      FamilyRelation[] @relation("FamilyRelationIn")
+  capsules      MemoryCapsule[]
 }
 
 // 家族关系：连接两个纪念馆（memorialId 视角下 type 表示对方与自己的关系）
@@ -264,6 +265,29 @@ model TimeLetter {
 }
 
 // ====================================
+// 记忆胶囊（家人封存珍贵记忆/寄语，定时解锁 + 解锁通知）
+// ====================================
+
+model MemoryCapsule {
+  id          String   @id @default(cuid())
+  memorialId  String
+  creatorId   String // 创建者（馆主）用户 id
+  creatorName String // 冗余存储，便于直接展示
+  title       String
+  content     String
+  unlockAt    DateTime // 解锁日期，到期前内容封存不可见
+  // 可见性：PRIVATE(仅创建者) | FAMILY(登录亲友可见) | PUBLIC(公开可见)
+  visibility  String   @default("FAMILY")
+  isUnlocked  Boolean  @default(false) // 惰性标记：到期首次访问置 true 并发通知
+  notified    Boolean  @default(false) // 是否已发送解锁通知
+  createdAt   DateTime @default(now())
+
+  memorial Memorial @relation(fields: [memorialId], references: [id], onDelete: Cascade)
+
+  @@index([memorialId])
+}
+
+// ====================================
 // 通知系统（馆主动态提醒）
 // ====================================
 
@@ -273,7 +297,7 @@ model Notification {
   memorialId   String
   memorialSlug String // 冗余存储 slug，便于直接跳转详情页
   memorialName String // 冗余存储，便于直接展示
-  // NEW_MESSAGE(新留言) | NEW_VISITOR(新访客，暂未启用)
+  // NEW_MESSAGE(新留言) | NEW_VISITOR(新访客，暂未启用) | CAPSULE_UNLOCKED(记忆胶囊解锁)
   type         String
   content      String? // 留言内容摘要
   isRead       Boolean  @default(false)

@@ -9,6 +9,7 @@ import Timeline from "@/components/Timeline";
 import TributePanel from "@/components/TributePanel";
 import PhotoWall from "@/components/PhotoWall";
 import TimeLetterPanel from "@/components/TimeLetterPanel";
+import MemoryCapsulePanel from "@/components/MemoryCapsulePanel";
 import AnimatedSection from "@/components/AnimatedSection";
 import ParticleBackground from "@/components/ParticleBackground";
 import VisitorStats from "@/components/VisitorStats";
@@ -366,6 +367,17 @@ export default async function MemorialPage({
             <TimeLetterPanel
               memorialSlug={memorial.id}
               memorialName={memorial.name}
+            />
+          </AnimatedSection>
+        </div>
+
+        {/* Memory Capsule (D3) */}
+        <div className="mt-16">
+          <AnimatedSection>
+            <MemoryCapsulePanel
+              memorialSlug={memorial.slug}
+              memorialName={memorial.name}
+              isOwner={isOwner}
             />
           </AnimatedSection>
         </div>

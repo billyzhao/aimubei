@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { deliverDueLetters } from "@/lib/data";
 import { z } from "zod";
 
 const letterSchema = z.object({
@@ -75,6 +76,9 @@ export async function GET(req: Request) {
     if (!memorial) {
       return NextResponse.json({ error: "纪念馆不存在" }, { status: 404 });
     }
+
+    // 惰性投递：到期 PENDING 信件生成 AI 回信并置为 REPLIED
+    await deliverDueLetters(memorial.id);
 
     const session = await getServerSession(authOptions);
     const isOwner = memorial.ownerId === session?.user?.id;
