@@ -37,3 +37,6 @@ next-env.d.ts
 
 # minio data
 /minio_data
+
+# Windows reserved device-name leftover (cannot be removed via normal delete APIs)
+nul
