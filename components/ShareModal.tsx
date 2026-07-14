@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import SharePoster from "./SharePoster";
 
 interface ShareModalProps {
   url: string;
@@ -21,7 +22,22 @@ export default function ShareModal({
 }: ShareModalProps) {
   const [copied, setCopied] = useState(false);
   const [qrCodeUrl, setQrCodeUrl] = useState("");
+  const [showPoster, setShowPoster] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
+
+  if (showPoster) {
+    const slug = url.replace(/^\/memorial\//, "").replace(/^\//, "");
+    return (
+      <SharePoster
+        name={name}
+        title={title}
+        bio={bio}
+        avatar={avatar}
+        slug={slug}
+        onClose={() => setShowPoster(false)}
+      />
+    );
+  }
 
   const fullUrl = typeof window !== "undefined" ? `${window.location.origin}${url}` : url;
 
@@ -158,6 +174,15 @@ export default function ShareModal({
             <span className="text-xs text-mist-300">Twitter</span>
           </button>
         </div>
+
+        {/* Poster */}
+        <button
+          onClick={() => setShowPoster(true)}
+          className="w-full flex items-center justify-center gap-2 p-3 rounded-xl bg-gradient-to-r from-amethyst-500/25 to-amethyst-600/15 hover:from-amethyst-500/35 hover:to-amethyst-600/25 border border-amethyst-500/30 transition-all group mb-6"
+        >
+          <span className="text-lg group-hover:scale-110 transition-transform">🖼️</span>
+          <span className="text-sm text-amethyst-200 font-medium">生成分享海报</span>
+        </button>
 
         {/* QR Code */}
         <div className="flex flex-col items-center gap-3">
