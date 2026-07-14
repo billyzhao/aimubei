@@ -141,8 +141,39 @@ export default async function MemorialPage({
   const candleCount = tributes.filter((t) => t.type === "candle").length;
   const messageCount = tributes.filter((t) => t.type === "message").length;
 
+  // E5 — JSON-LD 结构化数据（提升搜索引擎/分享富媒体展示），仅公开纪念馆注入
+  const memorialUrl = `${SITE_URL}/memorial/${memorial.slug}`;
+  const jsonLdImage =
+    memorial.avatar ||
+    (memorial.photos && memorial.photos.length > 0 ? memorial.photos[0] : "") ||
+    "/og-default.png";
+  const jsonLdDescription = memorial.bio
+    ? memorial.bio.substring(0, 160)
+    : `缅怀 ${memorial.name}，在永念 EverMind 数字纪念空间中，让思念可以对话。`;
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "DeceasedPerson",
+    name: memorial.name,
+    alternateName: memorial.title,
+    description: jsonLdDescription,
+    url: memorialUrl,
+    image: jsonLdImage,
+    mainEntityOfPage: {
+      "@type": "WebPage",
+      "@id": memorialUrl,
+    },
+    ...(memorial.birthYear ? { birthDate: String(memorial.birthYear) } : {}),
+    ...(memorial.deathYear ? { deathDate: String(memorial.deathYear) } : {}),
+  };
+
   return (
     <div className="min-h-screen flex flex-col relative">
+      {memorial.visibility === "PUBLIC" && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+      )}
       <Navbar />
 
       {/* Memorial Header */}
